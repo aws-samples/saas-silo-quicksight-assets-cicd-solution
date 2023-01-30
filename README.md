@@ -72,6 +72,8 @@ Once the Cloudformation template is successfully deployed, validate that followi
 
 2. An IAM role named SAASToolChainTenantManagementRole. This role allows the Toolchain account lambda functions to assume role in Tenant account. <p align="center"><img src="Images/tenant-iam.png" alt="CrossAccount IAM role"/>Figure 4: Cross Account IAM role for running commands in Tenant Account from Toolchain Account</p>
 
+:warning: **IMPORTANT: Please limit rights in your production accounts**: Since Toolchain account will invoke cloudformation which is inturn deploying AWS resources, we are giving overly permissive permissions to the Toolchain account. We strongly advice you to limit this based upon your use case and AWS Resources you need to deploy in your own accounts.
+
 ## <span style="color: green;">Test the deployment</span>
 
 1. Log in to the **Toolchain account console**. Search for DynamoDB service. 
