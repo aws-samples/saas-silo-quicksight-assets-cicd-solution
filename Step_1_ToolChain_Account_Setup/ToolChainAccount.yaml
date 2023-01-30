@@ -1,0 +1,1344 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Setup SAAS Admin/ToolChain account
+Parameters:
+  StagingBucket:
+    Description: S3 bucket where source Code has been staged.
+    Type: String
+    Default: saas-quicksight-workshop-assets
+  TenantAccountId:
+    Description: AWS AccountID of Tenant account for assuming cross account role
+    Type: String
+    Default: <MANDATORY:ENTER TENANT AWS ACCOUNT ID>
+  CodeCommitRepositoryName:
+    Description: CodeCommit repository name
+    Type: String
+    Default: SaasQuickSightAssets
+  CodeCommitBranchName:
+    Description: CodeCommit branch name
+    Type: String
+    Default: main
+  SourceCodeZipFileKeyName:
+    Description: key Name of the zip file with Source Code
+    Type: String
+    Default: quicksight-assets-code.zip
+  
+Resources:
+  MyRepo:
+    Type: AWS::CodeCommit::Repository
+    Properties:
+        RepositoryName: !Ref CodeCommitRepositoryName
+        RepositoryDescription: This is a repository for my project with first time code upload from StagingBucket.
+        Code:
+            BranchName: !Ref CodeCommitBranchName
+            S3: 
+                Bucket: !Sub ${StagingBucket} 
+                Key: !Sub ${SourceCodeZipFileKeyName}
+
+  #Tenants Definition DynamoDB#
+  
+  TenantsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+         TableName: SAASTenantDefinition
+         SSESpecification:
+            SSEEnabled: True
+         AttributeDefinitions:
+            - AttributeName: "TenantID"
+              AttributeType: "S"
+            - AttributeName: "AWSAccountID"
+              AttributeType: "S"         
+         KeySchema:
+            - AttributeName: "TenantID"
+              KeyType: "HASH"
+            - AttributeName: "AWSAccountID"
+              KeyType: "RANGE"  
+         ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+         StreamSpecification:
+            StreamViewType: NEW_AND_OLD_IMAGES
+
+      
+ #Tenants Definition DynamoDB Stream mapping. By setting up this mapping, everytime a Tenant is inserted in table, Lambda that sets up Quicksight in Tenant's account will be triggered#
+
+  EventMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt TenantsTable.StreamArn
+      FunctionName: !GetAtt SAASTenantOnboardingQSSetUpLambda.Arn
+      StartingPosition: 'LATEST'
+      BatchSize: 1
+      MaximumRetryAttempts: 0
+
+#Cross Account role that allows ToolChain account to provision QuickSIght and create/update QuickSight assets such as DataSource/DataSet/Analysis/Dashboard in Tenant Accounts
+
+  SAASToolChainTenantManagementRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+        RoleName: 'SAASToolChainTenantManagementRole'
+        AssumeRolePolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Principal:
+                    Service:
+                      - lambda.amazonaws.com
+                Action:
+                    - 'sts:AssumeRole'    
+        Path: /
+        Policies:
+          - PolicyName: SAASToolChainTenantManagementRolePolicy
+            PolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                  - Effect: Allow
+                    Action: logs:CreateLogGroup
+                    Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+                  - Effect: Allow
+                    Action:
+                        - logs:CreateLogStream
+                        - logs:PutLogEvents
+                    Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+
+                    #For starting Step Function execution
+                  - Effect: Allow
+                    Action: states:StartExecution
+                    Resource: '*'
+                  - Effect: Allow
+                    Action: 'codepipeline:*'
+                    Resource:
+                        !Join [ '', [ 'arn:aws:codepipeline:', !Ref 'AWS::Region', ':', !Ref 'AWS::AccountId', ':', !Ref Pipeline ] ]
+                    #For every Tenant, a Cross Account role needs to be added as below. The Role in Tenant Account will have detailed Policy 
+                  - Effect: Allow
+                    Action: sts:AssumeRole
+                    Resource: !Sub
+                        'arn:aws:iam::${TenantAccountId}:role/SAASTenantManagementCrossAccountRole'
+                    #For DynamoDB with tenant Definition 
+                  - Effect: Allow
+                    Action:
+                        - dynamodb:DescribeStream
+                        - dynamodb:GetItem
+                        - dynamodb:GetRecords
+                        - dynamodb:GetShardIterator
+                        - dynamodb:ListStreams
+                        - dynamodb:PutItem
+                        - dynamodb:Query
+                        - dynamodb:Scan
+                        - dynamodb:UpdateItem
+                    Resource:
+                        - Fn::GetAtt:
+                            - TenantsTable
+                            - StreamArn
+
+#A local S3 bucket with Temp files.
+#Files such as Lambda Layer with latest version of Boto3 need to be first staged in a local S3 bucket and the be referenced in CloudFornation.
+#Latest version of Boto3 is required for API calls.
+                 
+  S3BucketForToolchainAccountFiles:
+        Type: AWS::S3::Bucket
+        Properties:
+          BucketName: !Sub
+            'saas-toolchain-account-files-${AWS::AccountId}-${AWS::Region}'
+          AccessControl: Private
+          BucketEncryption:
+            ServerSideEncryptionConfiguration:
+                - ServerSideEncryptionByDefault:
+                    SSEAlgorithm: AES256
+          PublicAccessBlockConfiguration:
+            BlockPublicAcls: True
+            BlockPublicPolicy: True
+            IgnorePublicAcls: True
+            RestrictPublicBuckets: True
+
+    
+
+  #Role to Create local S3 Bucket
+
+  LambdaS3Role:
+        Type: 'AWS::IAM::Role'
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Principal:
+                  Service:
+                    - lambda.amazonaws.com
+                Action:
+                  - 'sts:AssumeRole'
+          Path: /
+          Policies:
+            - PolicyName: LambdaS3RolePolicy
+              PolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                  - Effect: Allow
+                    Action:
+                      - 's3:ListBucket'
+                      - 's3:ListAllMyBuckets'
+                    Resource: 'arn:aws:s3:::*'
+                  - Effect: Allow
+                    Action: s3:GetObject
+                    Resource: !Sub arn:aws:s3:::${StagingBucket}/*
+                  - Effect: Allow
+                    Action:
+                      - s3:PutObject
+                      - s3:DeleteObject
+                      - s3:GetObject
+                    Resource:
+                        - !Sub arn:aws:s3:::saas-toolchain-account-files-${AWS::AccountId}-${AWS::Region}/*
+                        - !Sub arn:aws:s3:::saas-quicksight-cicd-artifacts-${AWS::AccountId}-${AWS::Region}/*
+                  - Effect: Allow
+                    Action: logs:CreateLogGroup
+                    Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+                  - Effect: Allow
+                    Action:
+                      - logs:CreateLogStream
+                      - logs:PutLogEvents
+                    Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+
+  
+#Lambda function for copying files from workshop public S3 bucket to local S3 bucket in Toolchain account.
+
+  CopyS3DataFileLambda:
+        Type: AWS::Lambda::Function
+        Properties:
+          Handler: index.handler
+          Role: !GetAtt LambdaS3Role.Arn
+          Runtime: python3.9
+          Timeout: 60
+          Code:
+            ZipFile: !Sub |
+                      import os
+                      import json
+                      import cfnresponse
+
+                      import boto3
+                      from botocore.exceptions import ClientError
+
+                      s3 = boto3.client('s3')
+
+                      import logging
+
+                      logger = logging.getLogger()
+                      logger.setLevel(logging.INFO)
+
+
+                      def handler(event, context):
+                          logger.info("Received event %s" % json.dumps(event))
+                          source_bucket = event['ResourceProperties']['StagingBucket']
+                          source_prefix = event['ResourceProperties']['Boto3LambdaLayerKeyName']
+                          bucket = event['ResourceProperties']['S3BucketForToolchainFiles']
+                          prefix = event['ResourceProperties']['Boto3LambdaLayerKeyName']
+
+                          result = cfnresponse.SUCCESS
+
+                          try:
+                              if event['RequestType'] == 'Create' or event['RequestType'] == 'Update':
+                                  copy_source = {'Bucket': source_bucket, 'Key': source_prefix}
+                                  s3.copy(copy_source, bucket, prefix)
+   
+                              elif event['RequestType'] == 'Delete':
+                                  s3.delete_object(Bucket=bucket, Key=prefix)
+                                
+                          except ClientError as e:
+                              logger.error('Error %s', e)
+                              result = cfnresponse.FAILED
+                          finally:
+                              cfnresponse.send(event, context, result, {})
+
+
+
+#Following calls Lambda function for copying files from workshop public S3 bucket to local S3 bucket in Toolchain account.
+  
+  CopySourceObject:
+        Type: 'Custom::CopySourceObject'
+        DependsOn: S3BucketForToolchainAccountFiles
+        Properties:
+          ServiceToken: !GetAtt CopyS3DataFileLambda.Arn
+          StagingBucket: !Ref StagingBucket
+          Boto3LambdaLayerKeyName: 'boto3-mylayer.zip'
+          S3BucketForToolchainFiles: !Sub
+                    'saas-toolchain-account-files-${AWS::AccountId}-${AWS::Region}'
+
+
+# Lambda Layer with latest Boto3 version
+  LambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    DependsOn: CopySourceObject
+    Properties:
+      CompatibleArchitectures:
+        - arm64
+        - x86_64
+      CompatibleRuntimes:
+        - python3.9
+      Content:
+        S3Bucket: !Ref S3BucketForToolchainAccountFiles
+        S3Key: 'boto3-mylayer.zip'
+      Description: 'Latest Boto3 Layer'
+      LayerName: Boto3_1_29
+
+  #Following Lambda signs up Tenant Account QuickSight when a tenant signs up (a record inserted in DynamoDB table).
+  #DynamoDB streams triggers this Lambda
+  #Once QuickSight set up is complete, the Lambda starts a Step function that waits for QS setup to be complete, and triggers further workflow.
+
+
+  SAASTenantOnboardingQSSetUpLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: 'SAASTenantOnboardingQSSetUpLambda'
+      Runtime: python3.9
+      Layers:
+        - !Ref LambdaLayer
+      Timeout: 300
+      Handler: index.handler
+      Environment:
+        Variables:
+           StepFunctionARN: !GetAtt QSTenantQSSetupStateMachine.Arn
+      Role: !GetAtt SAASToolChainTenantManagementRole.Arn
+      Code:
+        ZipFile: !Sub |
+                import boto3
+                import json
+                import os
+                import logging
+                import uuid
+
+                def handler(event, context):
+                    logger = logging.getLogger()
+                    logger.setLevel(logging.INFO)
+    
+                    logger.info('Received Event: %s', event)
+   
+                    for record in event['Records']:
+                       # try:
+                            if (record['eventName'] == 'INSERT'):
+                                logger.info('Record: %s',record)
+                                aws_region= record['dynamodb']['NewImage']['AWSRegion']['S']
+                                aws_account_id = record['dynamodb']['Keys']['AWSAccountID']['S']
+                                rolearn= 'arn:aws:iam::' + aws_account_id  + ':role/SAASTenantManagementCrossAccountRole'
+                                aws_account_name = record['dynamodb']['NewImage']['TenantName']['S']
+                                #Make account name unique
+                                aws_account_name = aws_account_name + aws_account_id
+                                tenant_email= record['dynamodb']['NewImage']['QSAdminUserEmail']['S']
+                                tenant_phone = record['dynamodb']['NewImage']['QSAdminUserPhone']['S']
+                                tenant_admin_first_name = record['dynamodb']['NewImage']['QSAdminUserFirstName']['S']
+                                tenant_admin_last_name = record['dynamodb']['NewImage']['QSAdminUserLastName']['S']
+    
+                                client = boto3.client('sts')
+                                response = client.assume_role(RoleArn=rolearn,RoleSessionName="{}-quicksight".format(str(uuid.uuid4())[:5]))
+                                session = boto3.Session(aws_access_key_id=response['Credentials']['AccessKeyId'],aws_secret_access_key=response['Credentials']['SecretAccessKey'],aws_session_token=response['Credentials']['SessionToken'])
+                
+                                qsclient = session.client('quicksight', region_name = aws_region)
+    
+                                response = qsclient.create_account_subscription(
+                                Edition='ENTERPRISE',
+                                AuthenticationMethod='IAM_AND_QUICKSIGHT',
+                                AwsAccountId= aws_account_id,
+                                AccountName= aws_account_name,
+                                NotificationEmail= tenant_email,
+                                FirstName= tenant_admin_first_name,
+                                LastName= tenant_admin_last_name,
+                                EmailAddress= tenant_email,
+                                ContactNumber= tenant_phone
+                                )
+
+                                stepFunctionclient = boto3.client('stepfunctions')
+                                response = stepFunctionclient.start_execution(
+                                    stateMachineArn=os.environ['StepFunctionARN'],
+                                    name='SAASTenantQSSetupStateMachine'+ str(uuid.uuid4()),
+                                    input= json.dumps(record)
+                                )
+
+                            if (record['eventName'] == 'MODIFY'):
+                                if (record['dynamodb']['NewImage']['ApplyLatestRelease']['S'] == 'true'):
+                                    if (record['dynamodb']['OldImage']['ApplyLatestRelease']['S'] == 'false'):
+                                        logger.info('starting codepipeline') 
+                                        cpClient = boto3.client('codepipeline')
+                                        response = cpClient.start_pipeline_execution(name='SAASQSCodePipeline')
+                    
+            
+                                
+ #Following Lambda registers a Tenant User in Quicksight account that has been signed up for that Tenant.
+ #This is triggered via Step Function, after a wait for some time for QS to fully provision.                      
+              
+  SAASTenantRegisterQSUserLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: 'SAASTenantRegisterQSUserLambda'
+      Runtime: python3.9
+      Layers:
+        - !Ref LambdaLayer
+      Timeout: 300
+      Handler: index.handler
+      Role: !GetAtt SAASToolChainTenantManagementRole.Arn
+      Code:
+        ZipFile: !Sub |
+                import boto3
+                import json
+                import os
+                import logging
+                import uuid
+
+                def handler(event, context):
+                    logger = logging.getLogger()
+                    logger.setLevel(logging.INFO)
+    
+                    logger.info('Received Event: %s', event)
+                
+                    aws_region= event['dynamodb']['NewImage']['AWSRegion']['S']
+                    aws_account_id = event['dynamodb']['Keys']['AWSAccountID']['S']
+                    rolearn= 'arn:aws:iam::' + aws_account_id  + ':role/SAASTenantManagementCrossAccountRole'
+                    aws_account_name = event['dynamodb']['NewImage']['TenantName']['S']
+                    tenant_email= event['dynamodb']['NewImage']['QSAdminUserEmail']['S']
+                    tenant_phone = event['dynamodb']['NewImage']['QSAdminUserPhone']['S']
+                    tenant_admin_first_name = event['dynamodb']['NewImage']['QSAdminUserFirstName']['S']
+                    tenant_admin_last_name = event['dynamodb']['NewImage']['QSAdminUserLastName']['S']
+    
+                    client = boto3.client('sts')
+                    #response = client.assume_role(RoleArn='arn:aws:iam::817114643505:role/LambdaQuicksightAdminCrossAccountRole',RoleSessionName="{}-quicksight".format(str(uuid.uuid4())[:5]))
+                    response = client.assume_role(RoleArn=rolearn,RoleSessionName="{}-quicksight".format(str(uuid.uuid4())[:5]))
+                    session = boto3.Session(aws_access_key_id=response['Credentials']['AccessKeyId'],aws_secret_access_key=response['Credentials']['SecretAccessKey'],aws_session_token=response['Credentials']['SessionToken'])
+                
+                    qsclient = session.client('quicksight', region_name = aws_region)
+                    response = qsclient.register_user(
+                    IdentityType='QUICKSIGHT',
+                    Email=tenant_email,
+                    UserRole= 'ADMIN',
+                    AwsAccountId= aws_account_id,
+                    Namespace= 'default',
+                    UserName= tenant_email)
+               
+#Role for States Machine in Step Function so that it can invoke Lamda Functions in this stages
+
+  StatesMachineExecutionRole:
+      Type: "AWS::IAM::Role"
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: "Allow"
+              Principal:
+                Service:
+                  - !Sub states.${AWS::Region}.amazonaws.com
+              Action: "sts:AssumeRole"
+        Path: "/"
+        Policies:
+          - PolicyName: StatesExecutionPolicy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - "lambda:InvokeFunction"
+                  Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:SAASTenantRegisterQSUserLambda'
+
+#States Machine Step Function that waits after QS Sign up and then makes further API calls in the workflow such as Register a User.
+
+  QSTenantQSSetupStateMachine:
+        Type: AWS::StepFunctions::StateMachine
+        Properties:
+          Definition:
+            Comment: "QSTenantQSSetup-StateMachine"
+            StartAt: FirstState
+            States:
+              FirstState:
+                Type: Wait
+                Seconds: 180
+                Next: SecondState
+              SecondState:
+                Type: Task
+                Resource: !GetAtt SAASTenantRegisterQSUserLambda.Arn
+                InputPath: $
+                End: true
+          RoleArn: !GetAtt StatesMachineExecutionRole.Arn
+          StateMachineName: SAASTenantQSSetupStateMachine
+          StateMachineType: STANDARD
+
+#CICD Definition#
+#Below is Artifact bucket where CodePipeline will get CodeCommit code and save artifacts to be deployed.
+#There is also definition of associated IAM role and the clean-up code to delete this bucket when we delete the CloudFormation stack
+
+  ArtifactBucket:
+        Type: AWS::S3::Bucket
+        Properties:
+          BucketEncryption:
+            ServerSideEncryptionConfiguration:
+            - ServerSideEncryptionByDefault:
+                SSEAlgorithm: AES256
+          BucketName: !Sub 'saas-quicksight-cicd-artifacts-${AWS::AccountId}-${AWS::Region}'
+          PublicAccessBlockConfiguration:
+            BlockPublicAcls: true
+            BlockPublicPolicy: true
+            IgnorePublicAcls: true
+            RestrictPublicBuckets: true
+         
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+        Bucket: !Ref ArtifactBucket
+        PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Principal:
+                  AWS: !Sub
+                    'arn:aws:iam::${TenantAccountId}:root'
+                Action:
+                  - 's3:GetBucketLocation'
+                  - 's3:GetObject'
+                  - 's3:GetObjectTagging'
+                  - 's3:ListBucket'
+                Resource:
+                  - !Sub 'arn:aws:s3:::saas-quicksight-cicd-artifacts-${AWS::AccountId}-${AWS::Region}'
+                  - !Sub 'arn:aws:s3:::saas-quicksight-cicd-artifacts-${AWS::AccountId}-${AWS::Region}/*'
+
+  CleanUpArtifactBucketOnDeleteLambda:
+        Type: AWS::Lambda::Function
+        Properties:
+          Handler: index.handler
+          Role: !GetAtt LambdaS3Role.Arn
+          Runtime: python3.9
+          Timeout: 60
+          Code:
+            ZipFile: !Sub |
+                      import os
+                      import json
+                      import cfnresponse
+                      import boto3
+                      from botocore.exceptions import ClientError
+                      import logging
+
+                      logger = logging.getLogger()
+                      logger.setLevel(logging.INFO)
+                      def handler(event, context):
+                          
+                          result = cfnresponse.SUCCESS
+                          try:
+                            bucket = event['ResourceProperties']['BucketToClean']
+                            if event['RequestType'] == 'Delete':
+                                s3 = boto3.resource('s3')
+                                bucket = s3.Bucket(bucket)
+                                for obj in bucket.objects.filter():
+                                    s3.Object(bucket.name, obj.key).delete()
+      
+                          except ClientError as e:
+                              logger.error('Error %s', e)
+                              result = cfnresponse.FAILED
+                          finally:
+                              cfnresponse.send(event, context, result, {})
+
+  
+  CleanUpArtifactBucketOnDelete:
+        Type: 'Custom::CleanUpArtifactBucketOnDelete'
+        DependsOn: ArtifactBucket
+        Properties:
+          ServiceToken: !GetAtt CleanUpArtifactBucketOnDeleteLambda.Arn
+          BucketToClean: !Ref ArtifactBucket
+
+
+#Following is CodePipeline for CI/CD of QuickSIght assets to Tenant accounts (and associated role). We have kept it minimal in terms of stages.
+# In your organization you should add stages for testing and approvals.  
+
+  PipelineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - codepipeline.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: '/'
+      Policies:
+      - PolicyName: actions
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:Get*
+            - s3:Put*
+            - s3:ListBucket
+            Resource:
+            - !Sub
+              - ${BucketArn}/*
+              - BucketArn: !GetAtt ArtifactBucket.Arn
+            - !GetAtt ArtifactBucket.Arn
+          - Effect: Allow
+            Action:
+            - codecommit:GitPull
+            - codecommit:BatchGet*
+            - codecommit:BatchDescribe*
+            - codecommit:Describe*
+            - codecommit:EvaluatePullRequestApprovalRules
+            - codecommit:Get*
+            - codecommit:List*
+            - codecommit:GitPull
+            - codecommit:UploadArchive
+            Resource: !GetAtt MyRepo.Arn
+          - Effect: Allow
+            Action:
+            - lambda:InvokeFunction
+            # ARN manually constructed to avoid circular dependencies in CloudFormation.
+            Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:DeployCodeToSiloSAASTenantsLambda'
+        
+  
+                  
+  
+  Pipeline:  
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      Name: SAASQSCodePipeline
+      RoleArn: !GetAtt PipelineRole.Arn
+      ArtifactStore:
+          Type: S3
+          Location: !Ref ArtifactBucket
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: CodeCommitSourceAction
+              RunOrder: 1
+              ActionTypeId:
+                Category: Source
+                Provider: CodeCommit
+                Owner: AWS
+                Version: '1'
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                RepositoryName: !Ref CodeCommitRepositoryName
+                BranchName: !Ref CodeCommitBranchName
+              Namespace: SourceVariables
+             
+
+        - Name: DeployCodeToSiloSAASTenantsStage
+          Actions:
+              - Name: DeployCodeToSiloSAASTenantsAction
+                ActionTypeId:
+                  Category: Invoke
+                  Provider: Lambda
+                  Owner: AWS
+                  Version: '1'
+                Configuration:
+                  FunctionName: !Ref DeployCodeToSiloSAASTenantsLambda
+                  UserParameters: !Sub |
+                                    {"artifact": "SourceOutput", "commit_id": "#{SourceVariables.CommitId}","template_file": "SAASQSAssetsViaCF.yaml","other_files": "qs-data-analysis_v2.json,qs-data-dashboard_v2.json"}
+                InputArtifacts:
+                - Name: SourceOutput
+                Region: !Ref 'AWS::Region'
+                RunOrder: 1
+
+#CodePipeline is triggered anytime developers check-in the code. However we want to test code push to newly onboarded Tenants.
+#To allow quick testing, we have created CloudWatch rule to trigger event that starts CodePipeline every 5 minutes.
+#Following are CloudWatch rule and associated IAM role.
+
+  PipelineCloudWatchEventRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action: sts:AssumeRole
+      Path: /
+      Policies:
+        -
+          PolicyName: cwe-pipeline-execution
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              -
+                Effect: Allow
+                Action: codepipeline:StartPipelineExecution
+                Resource:
+                    !Join [ '', [ 'arn:aws:codepipeline:', !Ref 'AWS::Region', ':', !Ref 'AWS::AccountId', ':', !Ref Pipeline ] ]
+
+
+  PipelineScheduledEvent:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Trigger Code Pipeline on schedule to push latest code to new Tenants
+      Name: 'Saas-codepipeline-scheduled-event-rule'
+      ScheduleExpression: cron(*/5 * * * ? *)
+      State: ENABLED
+      Targets:
+        - Id: SAASCodePipelineTarget
+          RoleArn: !GetAtt PipelineCloudWatchEventRole.Arn
+          Arn:
+              !Join [ '', [ 'arn:aws:codepipeline:', !Ref 'AWS::Region', ':', !Ref 'AWS::AccountId', ':', !Ref Pipeline ] ]
+
+#Following Lambda function (and associated role) is triggered as a second stage in CodePipeline. This Lambda deploys code to Tenant acccount.
+#Lambda function polls DynamoDB to iterate through all Tenant accounts,
+#checks which ones have ApplyLatestRelease set as true, and do not have latest CodeCommitId.
+#For each eligible Tenant, this Lambda function runs CloudFormation stack in Tenant account (example: Tenant1-Stack) to deploy QuickSight Assets code.
+
+  DeployCodeToSiloSAASTenantsLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: 'DeployCodeToSiloSAASTenantsLambdaRole'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: '/'
+      Policies:
+      - PolicyName: lambda-execution-role
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - logs:CreateLogStream
+            - logs:DescribeLogGroup
+            - logs:PutLogEvents
+            Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+          - Effect: Allow
+            Action:
+            - logs:CreateLogStream
+            - logs:DescribeLogGroup
+            - logs:PutLogEvents
+            Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+          - Effect: Allow
+            Action:
+            - codepipeline:PutJobFailureResult
+            - codepipeline:PutJobSuccessResult
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - s3:Get*
+            - s3:Put*
+            - s3:ListBucket
+            Resource:
+            - !Sub
+              - ${BucketArn}/*
+              - BucketArn: !GetAtt ArtifactBucket.Arn
+            - !GetAtt ArtifactBucket.Arn
+          - Effect: Allow
+            Action:
+            - dynamodb:List*
+            - dynamodb:DescribeReservedCapacity*
+            - dynamodb:DescribeLimits
+            - dynamodb:DescribeTimeToLive
+            Resource: '*'
+          - Effect: Allow
+            Action:
+            - dynamodb:BatchGet*
+            - dynamodb:DescribeStream
+            - dynamodb:DescribeTable
+            - dynamodb:Get*
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:BatchWrite*
+            - dynamodb:CreateTable
+            - dynamodb:Delete*
+            - dynamodb:Update*
+            - dynamodb:PutItem
+            Resource: !GetAtt TenantsTable.Arn
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Resource: !Sub
+                        'arn:aws:iam::${TenantAccountId}:role/SAASTenantManagementCrossAccountRole'
+          
+  DeployCodeToSiloSAASTenantsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: DeployCodeToSiloSAASTenantsLambda
+      Handler: index.lambda_handler
+      Role: !GetAtt DeployCodeToSiloSAASTenantsLambdaRole.Arn
+      Runtime: python3.9
+      Timeout: 30
+      Code:
+        ZipFile: |
+            # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+            # SPDX-License-Identifier: MIT-0
+
+            from boto3.session import Session
+
+            import json
+            import boto3
+            import zipfile
+            import tempfile
+            import botocore
+            import traceback
+            import time
+            import uuid
+
+
+            print('Loading function')
+
+
+            code_pipeline = boto3.client('codepipeline')
+            dynamodb = boto3.resource('dynamodb')
+            table_tenant_details = dynamodb.Table('SAASTenantDefinition')
+
+
+            def find_artifact(artifacts, name):
+                """Finds the artifact 'name' among the 'artifacts'
+                Args:
+                    artifacts: The list of artifacts available to the function
+                    name: The artifact we wish to use
+                Returns:
+                    The artifact dictionary found
+                Raises:
+                    Exception: If no matching artifact is found
+    
+                """
+                for artifact in artifacts:
+                    if artifact['name'] == name:
+                        return artifact
+            
+                raise Exception('Input artifact named "{0}" not found in event'.format(name))
+    
+
+            def get_template_url(s3, artifact, file_in_zip):
+                """Gets the template artifact
+    
+                Downloads the artifact from the S3 artifact store to a temporary file
+                then extracts the zip and returns the file containing the CloudFormation
+                template.
+    
+                Args:
+                    artifact: The artifact to download
+                    file_in_zip: The path to the file within the zip containing the template
+        
+                Returns:
+                    The CloudFormation template as a string
+        
+                Raises:
+                    Exception: Any exception thrown while downloading the artifact or unzipping it
+    
+                """
+                tmp_file = tempfile.NamedTemporaryFile()
+                bucket = artifact['location']['s3Location']['bucketName']
+                print(bucket)
+
+                key = artifact['location']['s3Location']['objectKey']
+                print(key)    
+    
+                with tempfile.NamedTemporaryFile() as tmp_file:
+    
+                    s3.download_file(bucket, key, tmp_file.name)
+        
+                    with zipfile.ZipFile(tmp_file.name, 'r') as zip:
+                        extracted_file = zip.extract(file_in_zip, '/tmp/')
+            
+                        s3.upload_file(extracted_file, bucket, file_in_zip)
+                        template_url =''.join(['https://', bucket,'.s3.amazonaws.com/',file_in_zip])
+                        return template_url  
+
+            
+   
+            def update_stack(cf, stack, template_url, params):
+                """Start a CloudFormation stack update
+    
+                Args:
+                    stack: The stack to update
+                    template_url: The template to apply
+        
+                Returns:
+                    True if an update was started, false if there were no changes
+                    to the template since the last update.
+        
+                Raises:
+                    Exception: Any exception besides "No updates are to be performed."
+    
+                """
+                try:
+                    cf.update_stack(StackName=stack, TemplateURL=template_url, Capabilities=['CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'], Parameters=params)
+                    return True
+        
+                except botocore.exceptions.ClientError as e:
+                    if e.response['Error']['Message'] == 'No updates are to be performed.':
+                        return False
+                    else:
+                        raise Exception('Error updating CloudFormation stack "{0}"'.format(stack), e)
+
+            def stack_exists(cf, stack):
+                """Check if a stack exists or not
+    
+                Args:
+                    stack: The stack to check
+        
+                Returns:
+                    True or False depending on whether the stack exists
+        
+                Raises:
+                    Any exceptions raised .describe_stacks() besides that
+                    the stack doesn't exist.
+        
+                """
+                try:
+                    cf.describe_stacks(StackName=stack)
+                    return True
+                except botocore.exceptions.ClientError as e:
+                    if "does not exist" in e.response['Error']['Message']:
+                        return False
+                    else:
+                        raise e
+
+            def create_stack(cf, stack, template_url, params):
+                """Starts a new CloudFormation stack creation
+    
+                Args:
+                    stack: The stack to be created
+                    template_url: The template for the stack to be created with
+        
+                Throws:
+                    Exception: Any exception thrown by .create_stack()
+                """
+                cf.create_stack(StackName=stack, TemplateURL=template_url, Capabilities=['CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'], Parameters=params)
+
+            def delete_stack(cf, stack):
+                """Starts a new CloudFormation stack creation
+    
+                Args:
+                    stack: The stack to be created
+                    template_url: The template for the stack to be created with
+        
+                Throws:
+                    Exception: Any exception thrown by .create_stack()
+                """
+                cf.delete_stack(StackName=stack)
+
+
+            def get_stack_status(cf, stack):
+                """Get the status of an existing CloudFormation stack
+    
+                Args:
+                    stack: The name of the stack to check
+        
+                Returns:
+                    The CloudFormation status string of the stack such as CREATE_COMPLETE
+        
+                Raises:
+                    Exception: Any exception thrown by .describe_stacks()
+        
+                """
+                stack_description = cf.describe_stacks(StackName=stack)
+                return stack_description['Stacks'][0]['StackStatus']
+  
+            def put_job_success(job, message):
+                """Notify CodePipeline of a successful job
+    
+                Args:
+                    job: The CodePipeline job ID
+                    message: A message to be logged relating to the job status
+        
+                Raises:
+                    Exception: Any exception thrown by .put_job_success_result()
+    
+                """
+                print('Putting job success')
+                print(message)
+                code_pipeline.put_job_success_result(jobId=job)
+  
+            def put_job_failure(job, message):
+                """Notify CodePipeline of a failed job
+    
+                Args:
+                    job: The CodePipeline job ID
+                    message: A message to be logged relating to the job status
+        
+                Raises:
+                    Exception: Any exception thrown by .put_job_failure_result()
+    
+                """
+                print('Putting job failure')
+                print(message)
+                code_pipeline.put_job_failure_result(jobId=job, failureDetails={'message': message, 'type': 'JobFailed'})
+ 
+            def continue_job_later(job, message):
+                """Notify CodePipeline of a continuing job
+    
+                This will cause CodePipeline to invoke the function again with the
+                supplied continuation token.
+    
+                Args:
+                    job: The JobID
+                    message: A message to be logged relating to the job status
+                    continuation_token: The continuation token
+        
+                Raises:
+                    Exception: Any exception thrown by .put_job_success_result()
+    
+                """
+    
+                # Use the continuation token to keep track of any job execution state
+                # This data will be available when a new job is scheduled to continue the current execution
+                continuation_token = json.dumps({'previous_job_id': job})
+    
+                print('Putting job continuation')
+                print(message)
+                code_pipeline.put_job_success_result(jobId=job, continuationToken=continuation_token)
+
+            def start_update_or_create(cf, job_id, stack, template_url, params):
+                """Starts the stack update or create process
+    
+                If the stack exists then update, otherwise create. 
+
+               
+                Args:
+                    job_id: The ID of the CodePipeline job
+                    stack: The stack to create or update
+                    template_url: The template to create/update the stack with
+    
+                """
+                
+                if stack_exists(cf,stack):
+                    status = get_stack_status(cf,stack)
+                
+                    if status not in ['CREATE_COMPLETE', 'UPDATE_ROLLBACK_COMPLETE', 'UPDATE_COMPLETE']:
+                        # If the CloudFormation stack is not in a state where
+                        # it can be updated again then fail the job right away.
+                        put_job_failure(job_id, 'Stack cannot be updated when status is: ' + status)
+                        return 
+                
+        
+                    were_updates = update_stack(cf, stack, template_url, params)
+        
+                    if were_updates:
+                        # If there were updates then continue the job so it can monitor
+                        # the progress of the update.
+                        continue_job_later(job_id, 'Stack update started')  
+            
+                    else:
+                        # If there were no updates then succeed the job immediately 
+                        put_job_success(job_id, 'There were no stack updates')
+                         
+                else:
+                    # If the stack doesn't already exist then create it instead
+                    # of updating it.
+
+                    create_stack(cf, stack, template_url, params)
+
+                    # Continue the job so the pipeline will wait for the CloudFormation
+                    # stack to be created.
+
+                    continue_job_later(job_id, 'Stack create started')
+
+            def delete_stuck_cf_stack(cf, job_id, stack):
+                """Starts the stack delete process
+    
+               If stack is stuck, delete it.
+
+                
+                Args:
+                    job_id: The ID of the CodePipeline job
+                    stack: The stack to create or update
+                    
+                """
+                
+                if stack_exists(cf,stack):
+                    status = get_stack_status(cf,stack)
+                    if status in ['DELETE_FAILED', 'ROLLBACK_FAILED', 'ROLLBACK_COMPLETE']:
+                        # If the CloudFormation stack is not in a state where
+                        # it can be updated again and must be deleted, delete the stack.
+                        delete_stack(cf, stack)
+                        return 'deleted'
+
+                   
+
+
+            def check_stack_update_status(cf, job_id, stack):
+                """Monitor an already-running CloudFormation update/create
+    
+                Succeeds, fails or continues the job depending on the stack status.
+    
+                Args:
+                    job_id: The CodePipeline job ID
+                    stack: The stack to monitor
+    
+                """
+                status = get_stack_status(cf, stack)
+                if status in ['UPDATE_COMPLETE', 'CREATE_COMPLETE']:
+                    # If the update/create finished successfully then
+                    # succeed the job and don't continue.
+                    put_job_success(job_id, 'Stack update complete')
+        
+                elif status in ['UPDATE_IN_PROGRESS', 'UPDATE_ROLLBACK_IN_PROGRESS', 
+                'UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS', 'CREATE_IN_PROGRESS', 
+                'ROLLBACK_IN_PROGRESS', 'UPDATE_COMPLETE_CLEANUP_IN_PROGRESS']:
+                    # If the job isn't finished yet then continue it
+                    continue_job_later(job_id, 'Stack update still in progress') 
+       
+                else:
+                    # If the Stack is a state which isn't "in progress" or "complete"
+                    # then the stack update/create has failed so end the job with
+                    # a failed result.
+                    put_job_failure(job_id, 'Update failed: ' + status)
+
+            def get_user_params(job_data):
+                """Decodes the JSON user parameters and validates the required properties.
+    
+                Args:
+                    job_data: The job data structure containing the UserParameters string which should be a valid JSON structure
+        
+                Returns:
+                    The JSON parameters decoded as a dictionary.
+        
+                Raises:
+                    Exception: The JSON can't be decoded or a property is missing.
+        
+                """
+                try:
+                    # Get the user parameters which contain the stack, artifact and file settings
+                    user_parameters = job_data['actionConfiguration']['configuration']['UserParameters']
+                    decoded_parameters = json.loads(user_parameters)
+            
+                except Exception:
+                    # We're expecting the user parameters to be encoded as JSON
+                    # so we can pass multiple values. If the JSON can't be decoded
+                    # then fail the job with a helpful message.
+                    raise Exception('UserParameters could not be decoded as JSON')
+    
+
+                if 'artifact' not in decoded_parameters:
+                    # Validate that the artifact name is provided, otherwise fail the job
+                    # with a helpful message.
+                    raise Exception('Your UserParameters JSON must include the artifact name')
+    
+                if 'template_file' not in decoded_parameters:
+                    # Validate that the template file is provided, otherwise fail the job
+                    # with a helpful message.
+                    raise Exception('Your UserParameters JSON must include the template file name')
+    
+                return decoded_parameters
+    
+            def setup_cloudformation_client(tenantDetail):
+                """Creates an CloudFormation client
+    
+                Uses the credentials passed in the event by CodePipeline. These
+                credentials can be used to access the artifact bucket.
+    
+                Args:
+                    tenantDetail: Tenant Details as in Tenants definition DynamoDB
+        
+                Returns:
+                    CloudFormation client with the appropriate credentials
+        
+                """
+                client = boto3.client('sts')
+                rolearn = 'arn:aws:iam::' + tenantDetail['AWSAccountID'] +':role/SAASTenantManagementCrossAccountRole'
+                response = client.assume_role(RoleArn=rolearn,RoleSessionName="{}-cloudformation".format(str(uuid.uuid4())[:5]))
+                session = boto3.Session(aws_access_key_id=response['Credentials']['AccessKeyId'],aws_secret_access_key=response['Credentials']['SecretAccessKey'],aws_session_token=response['Credentials']['SessionToken'])
+
+                cfclient = session.client('cloudformation', region_name = tenantDetail['AWSRegion'])
+                return cfclient
+
+            def setup_s3_client(job_data):
+                """Creates an S3 client
+    
+                Uses the credentials passed in the event by CodePipeline. These
+                credentials can be used to access the artifact bucket.
+    
+                Args:
+                    job_data: The job data structure
+        
+                Returns:
+                    An S3 client with the appropriate credentials
+        
+                """
+                # Could not use the artifact credentials to put object to artifacts s3 bucket.
+                # We are running into issue as described in https://github.com/aws/aws-cdk/issues/3274
+     
+                # key_id = job_data['artifactCredentials']['accessKeyId']
+                # key_secret = job_data['artifactCredentials']['secretAccessKey']
+                # session_token = job_data['artifactCredentials']['sessionToken']
+    
+                # session = Session(aws_access_key_id=key_id,
+                #     aws_secret_access_key=key_secret,
+                #     aws_session_token=session_token)
+                # return session.client('s3')
+                return boto3.client('s3')
+
+            def get_tenant_params(tenantsDetail, artifact):
+                """Get tenant details to be supplied to Cloud formation
+
+                Args:
+                    tenantId (str): tenantId for which details are needed
+
+                Returns:
+                    params from tenant management table
+                """
+                params = []
+                param = {}
+                param['ParameterKey'] = 'QuickSightIdentityRegion'
+                param['ParameterValue'] = tenantsDetail['AWSRegion']
+                params.append(param)
+                param = {}
+                param['ParameterKey'] = 'CustomerName'
+                param['ParameterValue'] = tenantsDetail['TenantName']
+                params.append(param)
+                param = {}
+                param['ParameterKey'] = 'CustomerQuickSightUser'
+                param['ParameterValue'] = tenantsDetail['QSAdminUserEmail']
+                params.append(param)
+                param = {}
+                param['ParameterKey'] = 'CustomerDataS3BucketName'
+                param['ParameterValue'] = 'tenant-saas-data-' + tenantsDetail['AWSAccountID'] + '-' + tenantsDetail['AWSRegion']
+                params.append(param)
+                param = {}
+                param['ParameterKey'] = 'DeploymentPackageS3BucketName'
+                param['ParameterValue'] = artifact['location']['s3Location']['bucketName'] 
+                params.append(param)
+
+                return params
+
+            def add_parameter(params, parameter_key, parameter_value):
+                parameter = {}
+                parameter['ParameterKey'] = parameter_key
+                parameter['ParameterValue'] = parameter_value
+                params.append(parameter)
+
+
+
+
+            def update_tenantstackmapping(tenantId, accountId, commit_id):
+                """Update the tenant stack mapping table with the code pipeline job id
+
+                Args:
+                    tenantId ([string]): tenant id for which data needs to be updated
+                    job_id ([type]): current code pipeline job id
+
+                Returns:
+                    [type]: [description]
+                """
+                response = table_tenant_details.update_item(
+                        Key={'TenantID': tenantId, 'AWSAccountID': accountId},
+                        UpdateExpression="set CodeCommitId=:CodeCommitId",
+                        ExpressionAttributeValues={
+                        ':CodeCommitId': commit_id
+                        },
+                        ReturnValues="NONE") 
+    
+                return response
+
+            def lambda_handler(event, context):
+                """The Lambda function handler
+    
+                If a continuing job then checks the CloudFormation stack status
+                and updates the job accordingly.
+    
+                If a new job then kick of an update or creation of the target
+                CloudFormation stack.
+    
+                Args:
+                    event: The event passed by Lambda
+                    context: The context passed by Lambda
+        
+                """
+                job_id = ''
+                try:
+                    print(event)
+
+                    # Extract the Job ID
+                    job_id = event['CodePipeline.job']['id']
+        
+                    # Extract the Job Data 
+                    job_data = event['CodePipeline.job']['data']
+        
+                       
+                    # Get the list of artifacts passed to the function
+                    artifacts = job_data['inputArtifacts']
+        
+                    user_parameters = event['CodePipeline.job']['data']['actionConfiguration']['configuration']['UserParameters']
+                    decoded_parameters = json.loads(user_parameters)
+                    artifact = decoded_parameters['artifact']
+                    template_file = decoded_parameters['template_file']
+                    other_files_string = decoded_parameters['other_files']
+                    other_files = other_files_string.split(',')
+                    commit_id = decoded_parameters['commit_id']
+                    
+                    #template_file = 'SAASQSAssetsViaCF.yaml'
+                    #analysis_file = 'qs-data-analysis_v2.json'
+                    #dashboard_file = 'qs-data-dashboard_v2.json'
+                    
+
+                    
+                    
+                    # Get all the stacks for each tenant to be updated/created from tenant stack mapping table
+
+                    tenantsDetails = table_tenant_details.scan()
+                    print (tenantsDetails)
+
+                    #Update/Create stacks for all tenants
+                    for tenantsDetail in tenantsDetails['Items']:
+    
+                        tenantID = tenantsDetail['TenantID']
+                        try:
+                            stack =  'stack-' + tenantID
+                            applyLatestRelease = tenantsDetail['ApplyLatestRelease']
+                            existing_commit_id =tenantsDetail['CodeCommitId']
+
+                            
+                            if (applyLatestRelease == 'true'):
+                                cf = setup_cloudformation_client(tenantsDetail)
+                                if (delete_stuck_cf_stack(cf, job_id, stack) == 'deleted'):
+                                    update_tenantstackmapping(tenantID, tenantsDetail['AWSAccountID'], '')
+                                else:            
+                                    if (existing_commit_id != commit_id):
+                                        # Get the artifact details#
+                                        artifact_data = find_artifact(artifacts, artifact)
+
+                                        print(artifact_data)
+
+                                        # Get the parameters to be passed to the Cloudformation from tenant table
+                                        params = get_tenant_params(tenantsDetail, artifact_data)
+                
+                                        if 'continuationToken' in job_data:
+                                            # If we're continuing then the create/update has already been triggered#
+                                            # we just need to check if it has finished.#
+                                            check_stack_update_status(cf, job_id, stack)
+                                        else:
+                                
+                                            # Get S3 client to access artifact with#
+                                            s3 = setup_s3_client(job_data)
+
+                                            # Get the JSON template file and QuickSight Assets definition files out of the artifact#
+                                            template_url = get_template_url(s3, artifact_data, template_file)
+
+                                            if (len(other_files) >0):
+                                                index = 0
+                                                while (index < len(other_files)):
+                                                    get_template_url(s3, artifact_data, other_files[index])
+                                                    index = index + 1
+                               
+                                            # Kick off a stack update or create
+                                            start_update_or_create(cf, job_id, stack, template_url, params)  
+
+                                        
+                                            # If we are applying the release, update tenant stack mapping with the pipe line id
+                                            update_tenantstackmapping(tenantID, tenantsDetail['AWSAccountID'], commit_id)
+                               
+                        except Exception as e:
+                                print('Failed to push code to Tenant:' +  tenantID) 
+                                print(e)
+                except Exception as e:
+                    # If any other exceptions which we didn't expect are raised
+                    # then fail the job and log the exception message.
+                    print('Function failed due to exception.') 
+                    print(e)
+                    traceback.print_exc()
+                    put_job_failure(job_id, 'Function exception: ' + str(e))
+    
+                put_job_success(job_id, "Changeset executed successfully")
+                print('Function complete.')   
+                return "Complete."
+
+      
+
+  
