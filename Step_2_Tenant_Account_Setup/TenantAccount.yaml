@@ -1,0 +1,268 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Setup SAAS Tenant Account
+Parameters:
+  ToolChainAccountID:
+    Description: AWS AccountID of ToolChain account for creating cross account role
+    Type: String
+    Default: <MANDATORY:ENTER TOOLCHAIN AWS ACCOUNT ID>
+  TenantsDataManifestFileKeyName:
+    Description: key Name of the zip file with Source Code
+    Type: String
+    Default: saas-sales-manifest.json
+  TenantDataFileKeyName:
+    Description: key Name of the zip file with Source Code
+    Type: String
+    Default: SaaS-Sales.csv
+  StagingBucket:
+    Description: S3 bucket where source Code has been staged.
+    Type: String
+    Default: saas-quicksight-workshop-assets
+
+Resources:
+    S3BucketForTenantData:
+        Type: AWS::S3::Bucket
+        Properties:
+          BucketName: !Sub
+            'tenant-saas-data-${AWS::AccountId}-${AWS::Region}'
+          AccessControl: Private
+          BucketEncryption:
+            ServerSideEncryptionConfiguration:
+                - ServerSideEncryptionByDefault:
+                    SSEAlgorithm: AES256
+          PublicAccessBlockConfiguration:
+            BlockPublicAcls: True
+            BlockPublicPolicy: True
+            IgnorePublicAcls: True
+            RestrictPublicBuckets: True
+
+    S3BucketForTenantTempFiles:
+        Type: AWS::S3::Bucket
+        Properties:
+          BucketName: !Sub
+            'tenant-saas-account-files-${AWS::AccountId}-${AWS::Region}'
+          AccessControl: Private
+          BucketEncryption:
+            ServerSideEncryptionConfiguration:
+                - ServerSideEncryptionByDefault:
+                    SSEAlgorithm: AES256
+          PublicAccessBlockConfiguration:
+            BlockPublicAcls: True
+            BlockPublicPolicy: True
+            IgnorePublicAcls: True
+            RestrictPublicBuckets: True
+
+    LambdaCopySourceRole:
+        Type: 'AWS::IAM::Role'
+        Properties:
+          AssumeRolePolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Principal:
+                  Service:
+                    - lambda.amazonaws.com
+                Action:
+                  - 'sts:AssumeRole'
+          Path: /
+          Policies:
+            - PolicyName: LambdaCopySourceRolePolicy
+              PolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                  - Effect: Allow
+                    Action:
+                      - 's3:ListBucket'
+                      - 's3:ListAllMyBuckets'
+                    Resource: 'arn:aws:s3:::*'
+                  - Effect: Allow
+                    Action: s3:GetObject
+                    Resource: !Sub arn:aws:s3:::${StagingBucket}/*
+                  - Effect: Allow
+                    Action:
+                      - s3:PutObject
+                      - s3:DeleteObject
+                      - s3:PutObjectAcl
+                      - s3:GetObject
+                    Resource:
+                        - !Sub 'arn:aws:s3:::tenant-saas-data-${AWS::AccountId}-${AWS::Region}/*'
+                        - !Sub 'arn:aws:s3:::tenant-saas-account-files-${AWS::AccountId}-${AWS::Region}/*'
+                 
+                  - Effect: Allow
+                    Action: logs:CreateLogGroup
+                    Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*
+                  - Effect: Allow
+                    Action:
+                      - logs:CreateLogStream
+                      - logs:PutLogEvents
+                    Resource: !Sub arn:aws:logs:${AWS::Region}:${AWS::AccountId}:log-group:*
+
+  
+
+    LambdaCopyS3DataFile:
+        Type: AWS::Lambda::Function
+        Properties:
+          Handler: index.handler
+          Role: !GetAtt LambdaCopySourceRole.Arn
+          Runtime: python3.9
+          Timeout: 60
+          Code:
+            ZipFile: !Sub |
+                      import os
+                      import json
+                      import cfnresponse
+
+                      import boto3
+                      from botocore.exceptions import ClientError
+
+                      s3 = boto3.client('s3')
+
+                      import logging
+
+                      logger = logging.getLogger()
+                      logger.setLevel(logging.INFO)
+
+
+                      def handler(event, context):
+                          logger.info("Received event %s" % json.dumps(event))
+                          source_bucket = event['ResourceProperties']['StagingBucket']
+                          source_prefix = event['ResourceProperties']['TenantDataFileKeyName']
+                          data_files_bucket = event['ResourceProperties']['S3BucketForTenantData']
+                          data_file_prefix = event['ResourceProperties']['TenantDataFileKeyName']
+                          tenant_account_files_bucket = event['ResourceProperties']['S3BucketForTenantTempFiles']
+                          lambda_layer_prefix = event['ResourceProperties']['Boto3LambdaLayerKeyName']
+                          result = cfnresponse.SUCCESS
+
+                          try:
+                              if event['RequestType'] == 'Create' or event['RequestType'] == 'Update':
+                                  copy_source = {'Bucket': source_bucket, 'Key': source_prefix}
+                                  s3.copy(copy_source, data_files_bucket, data_file_prefix)
+
+                                  fileUri = 's3://' + data_files_bucket + '/SaaS-Sales.csv'
+                                  manifestdata = {}
+                                  fl = []
+                                  fl.append({"URIs":[fileUri]})
+                                  manifestdata["fileLocations"] = fl
+                                  json_data = json.dumps(manifestdata)
+
+                                  s3.put_object(Body=json_data,
+                                         Bucket='${S3BucketForTenantData}',
+                                         Key='${TenantsDataManifestFileKeyName}'
+                                    )
+
+                                  copy_source = {'Bucket': source_bucket, 'Key': lambda_layer_prefix}
+                                  s3.copy(copy_source, tenant_account_files_bucket, lambda_layer_prefix)
+                                  
+                              elif event['RequestType'] == 'Delete':
+                                  s3.delete_object(Bucket=data_files_bucket, Key=data_file_prefix)
+                                  s3.delete_object(Bucket=data_files_bucket, Key='${TenantsDataManifestFileKeyName}')
+                                  s3.delete_object(Bucket=tenant_account_files_bucket, Key=lambda_layer_prefix)
+                      
+                          except ClientError as e:
+                              logger.error('Error %s', e)
+                              result = cfnresponse.FAILED
+                          finally:
+                              cfnresponse.send(event, context, result, {})
+
+    
+    CopySourceObject:
+        Type: 'Custom::CopySourceObject'
+        Properties:
+          ServiceToken: !GetAtt LambdaCopyS3DataFile.Arn
+          StagingBucket: !Ref StagingBucket
+          TenantDataFileKeyName: !Ref TenantDataFileKeyName
+          S3BucketForTenantData: !Ref S3BucketForTenantData
+          S3BucketForTenantTempFiles: !Ref S3BucketForTenantTempFiles
+          Boto3LambdaLayerKeyName: 'boto3-mylayer.zip'
+          
+
+    SAASTenantManagementCrossAccountRole:
+        Type: 'AWS::IAM::Role'
+        Properties:
+          RoleName: 'SAASTenantManagementCrossAccountRole'
+          AssumeRolePolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Principal:
+                  Service:
+                    - lambda.amazonaws.com
+                Action:
+                  - 'sts:AssumeRole'
+            Statement:
+              - Effect: Allow
+                Principal:
+                  AWS: !Sub 'arn:aws:iam::${ToolChainAccountID}:root'
+                Action: 'sts:AssumeRole'
+                Condition: {}
+          Path: /
+          Policies:
+            - PolicyName: SAASTenantManagementCrossAccountRolePolicy
+              PolicyDocument:
+                Version: 2012-10-17
+                Statement:
+                  - Effect: Allow
+                    Action:
+                        - 'ds:AuthorizeApplication'
+                        - 'ds:UnauthorizeApplication'
+                        - 'ds:CheckAlias'
+                        - 'ds:CreateAlias'
+                        - 'ds:DescribeDirectories'
+                        - 'ds:DescribeTrusts'
+                        - 'ds:DeleteDirectory'
+                        - 'ds:CreateIdentityPoolDirectory'
+                        - 'iam:ListAccountAliases'
+                        - 'quicksight:CreateAdmin'
+                        - 'quicksight:Subscribe'
+                        - 'quicksight:CreateAccountSubscription'
+                        - 'quicksight:GetGroupMapping'
+                        - 'quicksight:SearchDirectoryGroups'
+                        - 'quicksight:SetGroupMapping'
+                        - 'quicksight:RegisterUser'
+                        - 'quicksight:*'
+                    Resource: '*'
+                  - Effect: Allow
+                    Action:
+                        - 's3:*'
+                    Resource: '*'
+                  - Effect: Allow
+                    Action:
+                        - 'cloudformation:*'
+                    Resource: '*'
+                  - Effect: Allow
+                    Action:
+                        - 'lambda:*'
+                    Resource: '*'
+                  - Effect: Allow
+                    Action:
+                        - 'iam:CreateInstanceProfile'
+                        - 'iam:UpdateAssumeRolePolicy'
+                        - 'iam:ListRoleTags'
+                        - 'iam:UntagRole'
+                        - 'iam:PutRolePermissionsBoundary'
+                        - 'iam:TagRole'
+                        - 'iam:RemoveRoleFromInstanceProfile'
+                        - 'iam:CreateRole'
+                        - 'iam:AttachRolePolicy'
+                        - 'iam:PutRolePolicy'
+                        - 'iam:ListInstanceProfilesForRole'
+                        - 'iam:PassRole'
+                        - 'iam:DetachRolePolicy'
+                        - 'iam:DeleteRolePolicy'
+                        - 'iam:ListAttachedRolePolicies'
+                        - 'iam:ListRolePolicies'
+                        - 'iam:ListPolicies'
+                        - 'iam:GetRole'
+                        - 'iam:ListRoles'
+                        - 'iam:DeleteRole'
+                        - 'iam:UpdateRoleDescription'
+                        - 'iam:CreateServiceLinkedRole'
+                        - 'iam:UpdateRole'
+                        - 'iam:DeleteServiceLinkedRole'
+                        - 'iam:GetRolePolicy'
+                    Resource: '*'
+                  - Effect: Deny
+                    Action: 'quicksight:Unsubscribe'
+                    Resource: '*'
+                
+    
+          
