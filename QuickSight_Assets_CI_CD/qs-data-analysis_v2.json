@@ -1,0 +1,1075 @@
+{
+    "Status": 200,
+    "AnalysisId": "e279004a-f975-4b14-8dc1-2fab791f1547",
+    "Name": "company-sales-data-analysis-v1",
+    "ResourceStatus": "CREATION_SUCCESSFUL",
+    "ThemeArn": "arn:aws:quicksight::aws:theme/SEASIDE",
+    "Definition": {
+        "DataSetIdentifierDeclarations": [
+            {
+                "Identifier": "company-sales-data",
+                "DataSetArn": "arn:aws:quicksight:us-west-2:006424409070:dataset/9a739379-ef3d-4b91-a0d3-dc8b43bfdda9"
+            }
+        ],
+        "Sheets": [
+            {
+                "SheetId": "6488bab7-b81e-4276-8b33-84f3f6adb77d",
+                "Name": "Sales Summary",
+                "FilterControls": [
+                    {
+                        "Dropdown": {
+                            "FilterControlId": "549c4850-3a92-4fcb-bc29-5bdd474624bc",
+                            "Title": "Segment equals",
+                            "SourceFilterId": "f36b6f33-1420-4528-b19d-5323bde5c5df",
+                            "DisplayOptions": {
+                                "SelectAllOptions": {
+                                    "Visibility": "VISIBLE"
+                                },
+                                "TitleOptions": {
+                                    "Visibility": "VISIBLE",
+                                    "FontConfiguration": {
+                                        "FontSize": {
+                                            "Relative": "LARGE"
+                                        }
+                                    }
+                                }
+                            },
+                            "Type": "MULTI_SELECT"
+                        }
+                    }
+                ],
+                "Visuals": [
+                    {
+                        "LineChartVisual": {
+                            "VisualId": "f18043af-c810-4d47-9187-1103f0070d9a",
+                            "Title": {
+                                "Visibility": "VISIBLE",
+                                "FormatText": {
+                                    "RichText": "<visual-title>\n  <inline font-size=\"16px\">\n    <b>Sum of Sales by Order Date</b>\n  </inline>\n</visual-title>"
+                                }
+                            },
+                            "Subtitle": {
+                                "Visibility": "VISIBLE"
+                            },
+                            "ChartConfiguration": {
+                                "FieldWells": {
+                                    "LineChartAggregatedFieldWells": {
+                                        "Category": [
+                                            {
+                                                "DateDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date.0.1669928370932",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Order Date"
+                                                    },
+                                                    "DateGranularity": "MONTH",
+                                                    "HierarchyId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date.0.1669928370932"
+                                                }
+                                            }
+                                        ],
+                                        "Values": [
+                                            {
+                                                "NumericalMeasureField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.1.1669928370932",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Sales"
+                                                    },
+                                                    "AggregationFunction": {
+                                                        "SimpleNumericalAggregation": "SUM"
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        "Colors": []
+                                    }
+                                },
+                                "SortConfiguration": {
+                                    "CategoryItemsLimitConfiguration": {
+                                        "OtherCategories": "INCLUDE"
+                                    },
+                                    "ColorItemsLimitConfiguration": {
+                                        "OtherCategories": "INCLUDE"
+                                    },
+                                    "SmallMultiplesLimitConfiguration": {
+                                        "OtherCategories": "INCLUDE"
+                                    }
+                                },
+                                "ForecastConfigurations": [
+                                    {
+                                        "ForecastProperties": {
+                                            "PeriodsForward": 14,
+                                            "PeriodsBackward": 0,
+                                            "PredictionInterval": 90
+                                        }
+                                    }
+                                ],
+                                "Type": "LINE",
+                                "DataLabels": {
+                                    "Visibility": "HIDDEN",
+                                    "Overlap": "DISABLE_OVERLAP"
+                                },
+                                "Tooltip": {
+                                    "TooltipVisibility": "VISIBLE",
+                                    "SelectedTooltipType": "DETAILED",
+                                    "FieldBasedTooltip": {
+                                        "AggregationVisibility": "HIDDEN",
+                                        "TooltipTitleType": "PRIMARY_VALUE",
+                                        "TooltipFields": [
+                                            {
+                                                "FieldTooltipItem": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date.0.1669928370932",
+                                                    "Visibility": "VISIBLE"
+                                                }
+                                            },
+                                            {
+                                                "FieldTooltipItem": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.1.1669928370932",
+                                                    "Visibility": "VISIBLE"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            },
+                            "Actions": [],
+                            "ColumnHierarchies": [
+                                {
+                                    "DateTimeHierarchy": {
+                                        "HierarchyId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date.0.1669928370932"
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "KPIVisual": {
+                            "VisualId": "55f2c5a1-1bc7-4f6c-8cc1-fcd3ec345138",
+                            "Title": {
+                                "Visibility": "VISIBLE",
+                                "FormatText": {
+                                    "RichText": "<visual-title>\n  <inline font-size=\"16px\">\n    <b>Sum of Sales by Order Date</b>\n  </inline>\n</visual-title>"
+                                }
+                            },
+                            "Subtitle": {
+                                "Visibility": "VISIBLE"
+                            },
+                            "ChartConfiguration": {
+                                "FieldWells": {
+                                    "Values": [
+                                        {
+                                            "NumericalMeasureField": {
+                                                "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.0.1669932720093",
+                                                "Column": {
+                                                    "DataSetIdentifier": "company-sales-data",
+                                                    "ColumnName": "Sales"
+                                                },
+                                                "AggregationFunction": {
+                                                    "SimpleNumericalAggregation": "SUM"
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "TargetValues": [],
+                                    "TrendGroups": [
+                                        {
+                                            "DateDimensionField": {
+                                                "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date.1.1669932721267",
+                                                "Column": {
+                                                    "DataSetIdentifier": "company-sales-data",
+                                                    "ColumnName": "Order Date"
+                                                },
+                                                "DateGranularity": "YEAR",
+                                                "HierarchyId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date.1.1669932721267"
+                                            }
+                                        }
+                                    ]
+                                },
+                                "SortConfiguration": {
+                                    "TrendGroupSort": [
+                                        {
+                                            "FieldSort": {
+                                                "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date.1.1669932721267",
+                                                "Direction": "DESC"
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            "Actions": [],
+                            "ColumnHierarchies": [
+                                {
+                                    "DateTimeHierarchy": {
+                                        "HierarchyId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date.1.1669932721267"
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "InsightVisual": {
+                            "VisualId": "a343b8de-e350-470e-a059-e5ea6da08ee9",
+                            "Title": {
+                                "Visibility": "VISIBLE",
+                                "FormatText": {
+                                    "RichText": "<visual-title>\n  <inline font-size=\"16px\">\n    <b>Period over Period</b>\n  </inline>\n</visual-title>"
+                                }
+                            },
+                            "Subtitle": {
+                                "Visibility": "VISIBLE"
+                            },
+                            "InsightConfiguration": {
+                                "Computations": [
+                                    {
+                                        "PeriodOverPeriod": {
+                                            "ComputationId": "06c76cd1-d02c-482a-9f21-c112ea3fa8f9",
+                                            "Name": "PeriodOverPeriod",
+                                            "Time": {
+                                                "DateDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date_Time",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Order Date"
+                                                    },
+                                                    "DateGranularity": "MONTH"
+                                                }
+                                            },
+                                            "Value": {
+                                                "NumericalMeasureField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales_Value",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Sales"
+                                                    },
+                                                    "AggregationFunction": {
+                                                        "SimpleNumericalAggregation": "SUM"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                ]
+                            },
+                            "Actions": [],
+                            "DataSetIdentifier": "company-sales-data"
+                        }
+                    },
+                    {
+                        "InsightVisual": {
+                            "VisualId": "3586b576-8559-4b1c-96ca-9c0d213b1445",
+                            "Title": {
+                                "Visibility": "VISIBLE",
+                                "FormatText": {
+                                    "RichText": "<visual-title>\n  <inline font-size=\"16px\">\n    <b>Forecast</b>\n  </inline>\n</visual-title>"
+                                }
+                            },
+                            "Subtitle": {
+                                "Visibility": "VISIBLE"
+                            },
+                            "InsightConfiguration": {
+                                "Computations": [
+                                    {
+                                        "Forecast": {
+                                            "ComputationId": "6aff25c7-b708-416d-80f5-ec867eb77eb2",
+                                            "Name": "ForecastInsight",
+                                            "Time": {
+                                                "DateDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date_Time",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Order Date"
+                                                    },
+                                                    "DateGranularity": "MONTH"
+                                                }
+                                            },
+                                            "Value": {
+                                                "NumericalMeasureField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales_Value",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Sales"
+                                                    },
+                                                    "AggregationFunction": {
+                                                        "SimpleNumericalAggregation": "SUM"
+                                                    }
+                                                }
+                                            },
+                                            "PeriodsForward": 14,
+                                            "PeriodsBackward": 0,
+                                            "PredictionInterval": 90,
+                                            "Seasonality": "AUTOMATIC"
+                                        }
+                                    }
+                                ]
+                            },
+                            "Actions": [],
+                            "DataSetIdentifier": "company-sales-data"
+                        }
+                    },
+                    {
+                        "PieChartVisual": {
+                            "VisualId": "cd89e0d1-51fa-4e3e-9e28-db74f9c90263",
+                            "Title": {
+                                "Visibility": "VISIBLE",
+                                "FormatText": {
+                                    "RichText": "<visual-title>\n  <inline font-size=\"16px\">\n    <b>Sum of Sales by Industry</b>\n  </inline>\n</visual-title>"
+                                }
+                            },
+                            "Subtitle": {
+                                "Visibility": "HIDDEN"
+                            },
+                            "ChartConfiguration": {
+                                "FieldWells": {
+                                    "PieChartAggregatedFieldWells": {
+                                        "Category": [
+                                            {
+                                                "CategoricalDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Industry.1.1669933150306",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Industry"
+                                                    },
+                                                    "HierarchyId": "09394d33-19d9-438b-b115-8951e7b8d967"
+                                                }
+                                            }
+                                        ],
+                                        "Values": [
+                                            {
+                                                "NumericalMeasureField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.1.1669933036457",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Sales"
+                                                    },
+                                                    "AggregationFunction": {
+                                                        "SimpleNumericalAggregation": "SUM"
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                "SortConfiguration": {
+                                    "CategorySort": [
+                                        {
+                                            "FieldSort": {
+                                                "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.1.1669933036457",
+                                                "Direction": "DESC"
+                                            }
+                                        }
+                                    ],
+                                    "CategoryItemsLimit": {
+                                        "OtherCategories": "INCLUDE"
+                                    },
+                                    "SmallMultiplesLimitConfiguration": {
+                                        "OtherCategories": "INCLUDE"
+                                    }
+                                },
+                                "DonutOptions": {
+                                    "ArcOptions": {
+                                        "ArcThickness": "MEDIUM"
+                                    }
+                                },
+                                "DataLabels": {
+                                    "Visibility": "VISIBLE",
+                                    "MeasureLabelVisibility": "VISIBLE",
+                                    "Overlap": "DISABLE_OVERLAP"
+                                },
+                                "Tooltip": {
+                                    "TooltipVisibility": "VISIBLE",
+                                    "SelectedTooltipType": "DETAILED",
+                                    "FieldBasedTooltip": {
+                                        "AggregationVisibility": "HIDDEN",
+                                        "TooltipTitleType": "PRIMARY_VALUE",
+                                        "TooltipFields": [
+                                            {
+                                                "FieldTooltipItem": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.1.1669933036457",
+                                                    "Visibility": "VISIBLE"
+                                                }
+                                            },
+                                            {
+                                                "FieldTooltipItem": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Industry.1.1669933150306",
+                                                    "Visibility": "VISIBLE"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            },
+                            "Actions": [
+                                {
+                                    "CustomActionId": "642134c3-1f5e-4287-995d-4a4ed20bce04",
+                                    "Name": "Action 1",
+                                    "Status": "ENABLED",
+                                    "Trigger": "DATA_POINT_CLICK",
+                                    "ActionOperations": [
+                                        {
+                                            "FilterOperation": {
+                                                "SelectedFieldsConfiguration": {
+                                                    "SelectedFieldOptions": "ALL_FIELDS"
+                                                },
+                                                "TargetVisualsConfiguration": {
+                                                    "SameSheetTargetVisualConfiguration": {
+                                                        "TargetVisualOptions": "ALL_VISUALS"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    ]
+                                }
+                            ],
+                            "ColumnHierarchies": [
+                                {
+                                    "ExplicitHierarchy": {
+                                        "HierarchyId": "09394d33-19d9-438b-b115-8951e7b8d967",
+                                        "Columns": [
+                                            {
+                                                "DataSetIdentifier": "company-sales-data",
+                                                "ColumnName": "Industry"
+                                            },
+                                            {
+                                                "DataSetIdentifier": "company-sales-data",
+                                                "ColumnName": "Customer"
+                                            }
+                                        ],
+                                        "DrillDownFilters": []
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "PivotTableVisual": {
+                            "VisualId": "45d55cb0-7853-4ff6-a6fa-919b61904d13",
+                            "Title": {
+                                "Visibility": "VISIBLE",
+                                "FormatText": {
+                                    "RichText": "<visual-title>\n  <inline font-size=\"16px\">\n    <b>Sum of Sales by Region, Subregion, and Order Date</b>\n  </inline>\n</visual-title>"
+                                }
+                            },
+                            "Subtitle": {
+                                "Visibility": "VISIBLE"
+                            },
+                            "ChartConfiguration": {
+                                "FieldWells": {
+                                    "PivotTableAggregatedFieldWells": {
+                                        "Rows": [
+                                            {
+                                                "CategoricalDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Region.1.1669933354943",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Region"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "CategoricalDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Subregion.2.1669933356302",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Subregion"
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        "Columns": [
+                                            {
+                                                "DateDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date.3.1669933357817",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Order Date"
+                                                    },
+                                                    "DateGranularity": "YEAR"
+                                                }
+                                            }
+                                        ],
+                                        "Values": [
+                                            {
+                                                "NumericalMeasureField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.0.1669933353202",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Sales"
+                                                    },
+                                                    "AggregationFunction": {
+                                                        "SimpleNumericalAggregation": "SUM"
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                "SortConfiguration": {
+                                    "FieldSortOptions": []
+                                },
+                                "TableOptions": {
+                                    "SingleMetricVisibility": "HIDDEN",
+                                    "ColumnHeaderStyle": {
+                                        "TextWrap": "NONE"
+                                    },
+                                    "CellStyle": {
+                                        "TextWrap": "NONE",
+                                        "Height": 25
+                                    }
+                                },
+                                "TotalOptions": {
+                                    "RowSubtotalOptions": {
+                                        "TotalsVisibility": "VISIBLE",
+                                        "TotalCellStyle": {
+                                            "BackgroundColor": "#219FD7",
+                                            "Border": {
+                                                "UniformBorder": {
+                                                    "Style": "SOLID"
+                                                }
+                                            }
+                                        },
+                                        "ValueCellStyle": {
+                                            "BackgroundColor": "#219FD7",
+                                            "Border": {
+                                                "UniformBorder": {
+                                                    "Style": "SOLID"
+                                                }
+                                            }
+                                        },
+                                        "MetricHeaderCellStyle": {
+                                            "BackgroundColor": "#219FD7",
+                                            "Border": {
+                                                "UniformBorder": {
+                                                    "Style": "SOLID"
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                "FieldOptions": {
+                                    "SelectedFieldOptions": [
+                                        {
+                                            "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Region.1.1669933354943",
+                                            "Visibility": "VISIBLE"
+                                        },
+                                        {
+                                            "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Subregion.2.1669933356302",
+                                            "Visibility": "VISIBLE"
+                                        },
+                                        {
+                                            "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date.3.1669933357817",
+                                            "Visibility": "VISIBLE"
+                                        },
+                                        {
+                                            "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.0.1669933353202",
+                                            "Visibility": "VISIBLE"
+                                        }
+                                    ],
+                                    "DataPathOptions": [
+                                        {
+                                            "DataPathList": [
+                                                {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Subregion.2.1669933356302",
+                                                    "FieldValue": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Subregion"
+                                                }
+                                            ],
+                                            "Width": "83px"
+                                        },
+                                        {
+                                            "DataPathList": [
+                                                {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Region.1.1669933354943",
+                                                    "FieldValue": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Region"
+                                                }
+                                            ],
+                                            "Width": "92px"
+                                        }
+                                    ]
+                                }
+                            },
+                            "Actions": []
+                        }
+                    },
+                    {
+                        "SankeyDiagramVisual": {
+                            "VisualId": "4ecace9d-e6cf-4f8f-9cbf-0f07d1d885e2",
+                            "Title": {
+                                "Visibility": "VISIBLE",
+                                "FormatText": {
+                                    "RichText": "<visual-title>\n  <inline font-size=\"16px\">\n    <b>Sales Sankey</b>\n  </inline>\n</visual-title>"
+                                }
+                            },
+                            "Subtitle": {
+                                "Visibility": "VISIBLE"
+                            },
+                            "ChartConfiguration": {
+                                "FieldWells": {
+                                    "SankeyDiagramAggregatedFieldWells": {
+                                        "Source": [
+                                            {
+                                                "CategoricalDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Region.0.1669942233013",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Region"
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        "Destination": [
+                                            {
+                                                "CategoricalDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Segment.1.1669942235912",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Segment"
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        "Weight": [
+                                            {
+                                                "NumericalMeasureField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.2.1669942237868",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Sales"
+                                                    },
+                                                    "AggregationFunction": {
+                                                        "SimpleNumericalAggregation": "SUM"
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                "SortConfiguration": {
+                                    "WeightSort": [
+                                        {
+                                            "FieldSort": {
+                                                "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.2.1669942237868",
+                                                "Direction": "DESC"
+                                            }
+                                        }
+                                    ]
+                                },
+                                "DataLabels": {
+                                    "Visibility": "VISIBLE",
+                                    "Overlap": "DISABLE_OVERLAP"
+                                }
+                            },
+                            "Actions": []
+                        }
+                    },
+                    {
+                        "GeospatialMapVisual": {
+                            "VisualId": "396c290d-d09b-4669-b5f9-f0522bc59537",
+                            "Title": {
+                                "Visibility": "VISIBLE",
+                                "FormatText": {
+                                    "RichText": "<visual-title>\n  <b>Sum of Sales by Country</b>\n  <inline font-size=\"16px\"/>\n</visual-title>"
+                                }
+                            },
+                            "Subtitle": {
+                                "Visibility": "VISIBLE"
+                            },
+                            "ChartConfiguration": {
+                                "FieldWells": {
+                                    "GeospatialMapAggregatedFieldWells": {
+                                        "Geospatial": [
+                                            {
+                                                "CategoricalDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Country.0.1669944582296",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Country"
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        "Values": [
+                                            {
+                                                "NumericalMeasureField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.1.1669944585681",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Sales"
+                                                    },
+                                                    "AggregationFunction": {
+                                                        "SimpleNumericalAggregation": "SUM"
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        "Colors": []
+                                    }
+                                },
+                                "Tooltip": {
+                                    "TooltipVisibility": "VISIBLE",
+                                    "SelectedTooltipType": "DETAILED",
+                                    "FieldBasedTooltip": {
+                                        "AggregationVisibility": "HIDDEN",
+                                        "TooltipTitleType": "PRIMARY_VALUE",
+                                        "TooltipFields": [
+                                            {
+                                                "FieldTooltipItem": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Country.0.1669944582296",
+                                                    "Visibility": "VISIBLE"
+                                                }
+                                            },
+                                            {
+                                                "FieldTooltipItem": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.1.1669944585681",
+                                                    "Visibility": "VISIBLE"
+                                                }
+                                            },
+                                            {
+                                                "ColumnTooltipItem": {
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Contact Name"
+                                                    },
+                                                    "Label": "# of Users",
+                                                    "Visibility": "VISIBLE",
+                                                    "Aggregation": {
+                                                        "CategoricalAggregationFunction": "COUNT"
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                "WindowOptions": {
+                                    "Bounds": {
+                                        "North": 85.05112899999997,
+                                        "South": -85.05112900000015,
+                                        "West": -224.5290859633314,
+                                        "East": 247.87266746040711
+                                    },
+                                    "MapZoomMode": "MANUAL"
+                                }
+                            },
+                            "ColumnHierarchies": [],
+                            "Actions": []
+                        }
+                    }
+                ],
+                "Layouts": [
+                    {
+                        "Configuration": {
+                            "GridLayout": {
+                                "Elements": [
+                                    {
+                                        "ElementId": "f18043af-c810-4d47-9187-1103f0070d9a",
+                                        "ElementType": "VISUAL",
+                                        "ColumnIndex": 0,
+                                        "ColumnSpan": 19,
+                                        "RowIndex": 0,
+                                        "RowSpan": 12
+                                    },
+                                    {
+                                        "ElementId": "549c4850-3a92-4fcb-bc29-5bdd474624bc",
+                                        "ElementType": "FILTER_CONTROL",
+                                        "ColumnIndex": 19,
+                                        "ColumnSpan": 9,
+                                        "RowIndex": 0,
+                                        "RowSpan": 3
+                                    },
+                                    {
+                                        "ElementId": "55f2c5a1-1bc7-4f6c-8cc1-fcd3ec345138",
+                                        "ElementType": "VISUAL",
+                                        "ColumnIndex": 19,
+                                        "ColumnSpan": 9,
+                                        "RowIndex": 3,
+                                        "RowSpan": 4
+                                    },
+                                    {
+                                        "ElementId": "a343b8de-e350-470e-a059-e5ea6da08ee9",
+                                        "ElementType": "VISUAL",
+                                        "ColumnIndex": 19,
+                                        "ColumnSpan": 9,
+                                        "RowIndex": 7,
+                                        "RowSpan": 3
+                                    },
+                                    {
+                                        "ElementId": "3586b576-8559-4b1c-96ca-9c0d213b1445",
+                                        "ElementType": "VISUAL",
+                                        "ColumnIndex": 19,
+                                        "ColumnSpan": 9,
+                                        "RowIndex": 10,
+                                        "RowSpan": 2
+                                    },
+                                    {
+                                        "ElementId": "cd89e0d1-51fa-4e3e-9e28-db74f9c90263",
+                                        "ElementType": "VISUAL",
+                                        "ColumnIndex": 0,
+                                        "ColumnSpan": 14,
+                                        "RowIndex": 12,
+                                        "RowSpan": 12
+                                    },
+                                    {
+                                        "ElementId": "45d55cb0-7853-4ff6-a6fa-919b61904d13",
+                                        "ElementType": "VISUAL",
+                                        "ColumnIndex": 14,
+                                        "ColumnSpan": 14,
+                                        "RowIndex": 12,
+                                        "RowSpan": 12
+                                    },
+                                    {
+                                        "ElementId": "4ecace9d-e6cf-4f8f-9cbf-0f07d1d885e2",
+                                        "ElementType": "VISUAL",
+                                        "ColumnIndex": 0,
+                                        "ColumnSpan": 14,
+                                        "RowIndex": 24,
+                                        "RowSpan": 12
+                                    },
+                                    {
+                                        "ElementId": "396c290d-d09b-4669-b5f9-f0522bc59537",
+                                        "ElementType": "VISUAL",
+                                        "ColumnIndex": 14,
+                                        "ColumnSpan": 14,
+                                        "RowIndex": 24,
+                                        "RowSpan": 12
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                ],
+                "ContentType": "INTERACTIVE"
+            },
+            {
+                "SheetId": "8edb765e-4cdc-4342-a080-c0ee68e59086",
+                "Name": "Sales Details",
+                "Visuals": [
+                    {
+                        "TableVisual": {
+                            "VisualId": "82cca764-d6a8-4511-83cc-9a9e87d50bb1",
+                            "Title": {
+                                "Visibility": "VISIBLE",
+                                "FormatText": {
+                                    "RichText": "<visual-title>\n  <b>Order Details</b>\n  <inline font-size=\"16px\"/>\n</visual-title>"
+                                }
+                            },
+                            "Subtitle": {
+                                "Visibility": "VISIBLE"
+                            },
+                            "ChartConfiguration": {
+                                "FieldWells": {
+                                    "TableAggregatedFieldWells": {
+                                        "GroupBy": [
+                                            {
+                                                "CategoricalDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Contact Name.0.1669945475586",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Contact Name"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "CategoricalDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Country.1.1669945476572",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Country"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "CategoricalDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Customer.2.1669945477502",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Customer"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "CategoricalDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Industry.3.1669945479263",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Industry"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "DateDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order Date.5.1669945490721",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Order Date"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "CategoricalDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Order ID.6.1669945491306",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Order ID"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "CategoricalDimensionField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Product.7.1669945492496",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Product"
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        "Values": [
+                                            {
+                                                "NumericalMeasureField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Discount.4.1669945480211",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Discount"
+                                                    },
+                                                    "AggregationFunction": {
+                                                        "SimpleNumericalAggregation": "AVERAGE"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "NumericalMeasureField": {
+                                                    "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.8.1669945509512",
+                                                    "Column": {
+                                                        "DataSetIdentifier": "company-sales-data",
+                                                        "ColumnName": "Sales"
+                                                    },
+                                                    "AggregationFunction": {
+                                                        "SimpleNumericalAggregation": "SUM"
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                "SortConfiguration": {
+                                    "RowSort": [
+                                        {
+                                            "FieldSort": {
+                                                "FieldId": "4bcc5b89-b769-4b6a-b476-3183665c1e73.Sales.8.1669945509512",
+                                                "Direction": "DESC"
+                                            }
+                                        }
+                                    ]
+                                }
+                            },
+                            "Actions": []
+                        }
+                    }
+                ],
+                "Layouts": [
+                    {
+                        "Configuration": {
+                            "GridLayout": {
+                                "Elements": [
+                                    {
+                                        "ElementId": "82cca764-d6a8-4511-83cc-9a9e87d50bb1",
+                                        "ElementType": "VISUAL",
+                                        "ColumnIndex": 0,
+                                        "ColumnSpan": 33,
+                                        "RowIndex": 0,
+                                        "RowSpan": 16
+                                    }
+                                ],
+                                "CanvasSizeOptions": {
+                                    "ScreenCanvasSizeOptions": {
+                                        "ResizeOption": "FIXED",
+                                        "OptimizedViewPortWidth": "1600px"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                ],
+                "ContentType": "INTERACTIVE"
+            }
+        ],
+        "CalculatedFields": [],
+        "ParameterDeclarations": [],
+        "FilterGroups": [
+            {
+                "FilterGroupId": "81857acd-e6b3-4777-b9d1-b00a0b081625",
+                "Filters": [
+                    {
+                        "CategoryFilter": {
+                            "FilterId": "f36b6f33-1420-4528-b19d-5323bde5c5df",
+                            "Column": {
+                                "DataSetIdentifier": "company-sales-data",
+                                "ColumnName": "Segment"
+                            },
+                            "Configuration": {
+                                "FilterListConfiguration": {
+                                    "MatchOperator": "CONTAINS",
+                                    "SelectAllOptions": "FILTER_ALL_VALUES"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "ScopeConfiguration": {
+                    "SelectedSheets": {
+                        "SheetVisualScopingConfigurations": [
+                            {
+                                "SheetId": "6488bab7-b81e-4276-8b33-84f3f6adb77d",
+                                "Scope": "ALL_VISUALS"
+                            }
+                        ]
+                    }
+                },
+                "Status": "ENABLED",
+                "CrossDataset": "ALL_DATASETS"
+            }
+        ],
+        "ColumnConfigurations": [
+            {
+                "Column": {
+                    "DataSetIdentifier": "company-sales-data",
+                    "ColumnName": "Sales"
+                },
+                "FormatConfiguration": {
+                    "NumberFormatConfiguration": {
+                        "FormatConfiguration": {
+                            "CurrencyDisplayFormatConfiguration": {}
+                        }
+                    }
+                }
+            },
+            {
+                "Column": {
+                    "DataSetIdentifier": "company-sales-data",
+                    "ColumnName": "Discount"
+                },
+                "FormatConfiguration": {
+                    "NumberFormatConfiguration": {
+                        "FormatConfiguration": {
+                            "PercentageDisplayFormatConfiguration": {}
+                        }
+                    }
+                }
+            }
+        ],
+        "AnalysisDefaults": {
+            "DefaultNewSheetConfiguration": {
+                "InteractiveLayoutConfiguration": {
+                    "Grid": {
+                        "CanvasSizeOptions": {
+                            "ScreenCanvasSizeOptions": {
+                                "ResizeOption": "FIXED",
+                                "OptimizedViewPortWidth": "1600px"
+                            }
+                        }
+                    }
+                },
+                "SheetContentType": "INTERACTIVE"
+            }
+        }
+    },
+    "RequestId": "84cabb8c-8a2b-4cc7-906a-1b1072287c1a"
+}

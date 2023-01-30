@@ -1,0 +1,758 @@
+﻿AWSTemplateFormatVersion: 2010-09-09
+Description: Automated deployment of QuickSight Assets.
+Parameters:
+  1stReadMe:
+    Type: String
+    Default: README
+    Description: >-
+      PREREQUISITES - 1) QuickSight should be setup on the aws account, 2) An
+      user with author/admin role should be setup in QuickSight. 3)SPICE
+      capacity should be available in the region where you are creating this
+      stack.
+  QuickSightIdentityRegion:
+    Type: String
+    Default: us-east-1
+    MinLength: 1
+    Description: >-
+      REQUIRED - QuickSight identity region (region where your users are
+      managed; run list-users command and check the user arn if you are not sure
+      of the identity region).
+  CustomerName:
+    Type: String
+    Default: Company1
+    Description: REQUIRED - Tenant's Company Name.
+  CustomerQuickSightUser:
+    Type: String
+    Default: KavitaMahajan
+    MinLength: 1
+    Description: >-
+      REQUIRED - User name of QuickSight author/admin from default namespace (as
+      displayed in QuickSight admin panel). Dashboard created by this template
+      with be shared with this user.
+  SuffixForUniqueness:
+    Type: String
+    Default: v1
+    Description: >-
+      OPTIONAL - If you need to create multiple instances of this sample on same
+      aws account, add a short suffix here so that name is unique.
+  CustomerDataS3BucketName:
+    Type: String
+    Default: tenant-saas-data
+    Description: REQUIRED - S3 Bucket with Data manifest file.
+  CustomerDataS3KeyName:
+    Type: String
+    Default: saas-sales-manifest.json
+    Description: REQUIRED - S3 Key name of Data manifest file.
+  DeploymentPackageS3BucketName:
+    Type: String
+    Default: saas-quicksight-cicd-artifacts
+    Description: >-
+      REQUIRED - S3 Bucket with Deployment Package (This CloudFormation script,
+      Analysis and dashboard definition files).
+  DashboardDefinitionFileS3KeyName:
+    Type: String
+    Default: qs-data-dashboard_v2.json
+    Description: >-
+      REQUIRED - Quicksight Dashboard definition Json file name in S3. Create
+      this file using describe-dashboard-definition CLI command from Quicksight
+      development environment. This template has definition of Dashboard to be
+      deployed.
+  AnalysisDefinitionFileS3KeyName:
+    Type: String
+    Default: qs-data-analysis_v2.json
+    Description: >-
+      REQUIRED - Quicksight Analysis definition Json file name in S3. Create
+      this file using describe-analysis-definition CLI command from Quicksight
+      development environment. This template has definition of Analysis to be
+      deployed.
+Resources:
+  QSDataSource:
+    Type: 'AWS::QuickSight::DataSource'
+    Properties:
+      DataSourceId: !Join 
+        - ''
+        - - SAAS-DataSource
+          - !Ref CustomerName
+          - !Ref SuffixForUniqueness
+      Name: !Join 
+        - ''
+        - - SAAS-DataSource
+          - !Ref CustomerName
+          - !Ref SuffixForUniqueness
+      AwsAccountId: !Sub ${AWS::AccountId}
+      Type: S3
+      DataSourceParameters:
+        S3Parameters:
+          ManifestFileLocation:
+            Bucket: !Ref CustomerDataS3BucketName
+            Key: !Ref CustomerDataS3KeyName
+      Permissions:
+        - Principal: !Join 
+            - ''
+            - - 'arn:aws:quicksight:'
+              - !Ref QuickSightIdentityRegion
+              - ':'
+              - !Sub ${AWS::AccountId}
+              - ':user/default/'
+              - !Ref CustomerQuickSightUser
+          Actions:
+            - 'quicksight:UpdateDataSourcePermissions'
+            - 'quicksight:DescribeDataSource'
+            - 'quicksight:DescribeDataSourcePermissions'
+            - 'quicksight:PassDataSource'
+            - 'quicksight:UpdateDataSource'
+            - 'quicksight:DeleteDataSource'
+  QSDataSet:
+    Type: 'AWS::QuickSight::DataSet'
+    Properties:
+      DataSetId: !Join 
+        - ''
+        - - SAAS-DataSet
+          - !Ref CustomerName
+          - !Ref SuffixForUniqueness
+      Name: !Join 
+        - ''
+        - - SAAS-DataSet
+          - !Ref CustomerName
+          - !Ref SuffixForUniqueness
+      AwsAccountId: !Sub ${AWS::AccountId}
+      PhysicalTableMap:
+        PhysicalTable1:
+          S3Source:
+            DataSourceArn: !GetAtt 
+              - QSDataSource
+              - Arn
+            UploadSettings:
+              Format: CSV
+              StartFromRow: 1
+              ContainsHeader: true
+              TextQualifier: DOUBLE_QUOTE
+              Delimiter: ','
+            InputColumns:
+              - Name: Row ID
+                Type: STRING
+              - Name: Order ID
+                Type: STRING
+              - Name: Order Date
+                Type: STRING
+              - Name: Date Key
+                Type: STRING
+              - Name: Contact Name
+                Type: STRING
+              - Name: Country
+                Type: STRING
+              - Name: City
+                Type: STRING
+              - Name: Region
+                Type: STRING
+              - Name: Subregion
+                Type: STRING
+              - Name: Customer
+                Type: STRING
+              - Name: Customer ID
+                Type: STRING
+              - Name: Industry
+                Type: STRING
+              - Name: Segment
+                Type: STRING
+              - Name: Product
+                Type: STRING
+              - Name: License
+                Type: STRING
+              - Name: Sales
+                Type: STRING
+              - Name: Quantity
+                Type: STRING
+              - Name: Discount
+                Type: STRING
+              - Name: Profit
+                Type: STRING
+      LogicalTableMap:
+        LogicalTable1:
+          Alias: SAAS-DataSet
+          DataTransforms:
+            - CastColumnTypeOperation:
+                ColumnName: Row ID
+                NewColumnType: INTEGER
+            - CastColumnTypeOperation:
+                ColumnName: Discount
+                NewColumnType: DECIMAL
+            - CastColumnTypeOperation:
+                ColumnName: Quantity
+                NewColumnType: INTEGER
+            - TagColumnOperation:
+                ColumnName: City
+                Tags:
+                  - ColumnGeographicRole: CITY
+            - CastColumnTypeOperation:
+                ColumnName: Date Key
+                NewColumnType: INTEGER
+            - CastColumnTypeOperation:
+                ColumnName: Sales
+                NewColumnType: DECIMAL
+            - CastColumnTypeOperation:
+                ColumnName: Customer ID
+                NewColumnType: INTEGER
+            - TagColumnOperation:
+                ColumnName: Country
+                Tags:
+                  - ColumnGeographicRole: COUNTRY
+            - TagColumnOperation:
+                ColumnName: Region
+                Tags:
+                  - ColumnGeographicRole: STATE
+            - CastColumnTypeOperation:
+                ColumnName: Order Date
+                NewColumnType: DATETIME
+                Format: M/d/yyyy
+            - CastColumnTypeOperation:
+                ColumnName: Profit
+                NewColumnType: DECIMAL
+          Source:
+            PhysicalTableId: PhysicalTable1
+      OutputColumns:
+        - Name: Row ID
+          Type: INTEGER
+        - Name: Order ID
+          Type: STRING
+        - Name: Order Date
+          Type: DATETIME
+        - Name: Date Key
+          Type: INTEGER
+        - Name: Contact Name
+          Type: STRING
+        - Name: Country
+          Type: STRING
+        - Name: City
+          Type: STRING
+        - Name: Region
+          Type: STRING
+        - Name: Subregion
+          Type: STRING
+        - Name: Customer
+          Type: STRING
+        - Name: Customer ID
+          Type: INTEGER
+        - Name: Industry
+          Type: STRING
+        - Name: Segment
+          Type: STRING
+        - Name: Product
+          Type: STRING
+        - Name: License
+          Type: STRING
+        - Name: Sales
+          Type: DECIMAL
+        - Name: Quantity
+          Type: INTEGER
+        - Name: Discount
+          Type: DECIMAL
+        - Name: Profit
+          Type: DECIMAL
+      ImportMode: SPICE
+      ConsumedSpiceCapacityInBytes: 4628564
+      DataSetUsageConfiguration:
+        DisableUseAsDirectQuerySource: false
+        DisableUseAsImportedSource: false
+      Permissions:
+        - Principal: !Join 
+            - ''
+            - - 'arn:aws:quicksight:'
+              - !Ref QuickSightIdentityRegion
+              - ':'
+              - !Sub ${AWS::AccountId}
+              - ':user/default/'
+              - !Ref CustomerQuickSightUser
+          Actions:
+            - 'quicksight:UpdateDataSetPermissions'
+            - 'quicksight:DescribeDataSet'
+            - 'quicksight:DescribeDataSetPermissions'
+            - 'quicksight:PassDataSet'
+            - 'quicksight:DescribeIngestion'
+            - 'quicksight:ListIngestions'
+            - 'quicksight:UpdateDataSet'
+            - 'quicksight:DeleteDataSet'
+            - 'quicksight:CreateIngestion'
+            - 'quicksight:CancelIngestion'
+
+  QuickSightCreateAssetsLambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: QuickSightCreateAssetsPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - 'ds:AuthorizeApplication'
+                  - 'ds:UnauthorizeApplication'
+                  - 'ds:CheckAlias'
+                  - 'ds:CreateAlias'
+                  - 'ds:DescribeDirectories'
+                  - 'ds:DescribeTrusts'
+                  - 'ds:DeleteDirectory'
+                  - 'ds:CreateIdentityPoolDirectory'
+                  - 'iam:ListAccountAliases'
+                  - 'quicksight:CreateAdmin'
+                  - 'quicksight:Subscribe'
+                  - 'quicksight:GetGroupMapping'
+                  - 'quicksight:SearchDirectoryGroups'
+                  - 'quicksight:SetGroupMapping'
+                  - 'quicksight:CreateAnalysis'
+                  - 'quicksight:CreateDashboard'
+                  - 'quicksight:RestoreAnalysis'
+                  - 'quicksight:UpdateAnalysisPermissions'
+                  - 'quicksight:DeleteAnalysis'
+                  - 'quicksight:DescribeAnalysisPermissions'
+                  - 'quicksight:QueryAnalysis'
+                  - 'quicksight:DescribeAnalysis'
+                  - 'quicksight:UpdateAnalysis'
+                  - 'quicksight:DescribeDashboard'
+                  - 'quicksight:ListDashboardVersions'
+                  - 'quicksight:UpdateDashboardPermissions'
+                  - 'quicksight:QueryDashboard'
+                  - 'quicksight:UpdateDashboard'
+                  - 'quicksight:DeleteDashboard'
+                  - 'quicksight:DescribeDashboardPermissions'
+                  - 'quicksight:UpdateDashboardPublishedVersion'
+                  - 'quicksight:PassDataSet'
+                  - 's3:*'
+                Resource: '*'
+  LambdaLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      CompatibleArchitectures:
+        - arm64
+        - x86_64
+      CompatibleRuntimes:
+        - python3.9
+      Content:
+        S3Bucket: !Sub
+                'tenant-saas-account-files-${AWS::AccountId}-${AWS::Region}'
+        S3Key: 'boto3-mylayer.zip'
+      Description: 'Latest Boto3 Layer'
+      LayerName: Boto3_1_29
+
+  CreateQuickSightAnalysisCustomResourceLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: python3.9
+      Layers:
+        - !Ref LambdaLayer
+      Handler: index.handler
+      FunctionName: !Join
+        - ''
+        - - CreateQuickSightAnalysisCustomResourceLambda
+          - !Ref SuffixForUniqueness
+      Timeout: 30
+      Role: !GetAtt 
+        - QuickSightCreateAssetsLambdaExecutionRole
+        - Arn
+      Code:
+        ZipFile: |
+            import botocore
+            import boto3
+            import json
+            import cfnresponse
+            import logging
+
+            def handler(event, context):
+                response = None
+                responseData={}
+                analysis_arn = ''
+                status = cfnresponse.SUCCESS
+                logger = logging.getLogger()
+                logger.setLevel(logging.INFO)
+                
+                try:
+                    s3_bucket = event['ResourceProperties']['AnalysisDefinitionFileS3BucketName']
+                    s3_key_name = event['ResourceProperties']['AnalysisDefinitionFileS3KeyName']
+                    aws_account_id = event['ResourceProperties']['CustomerAWSAccountId']
+                    region= event['ResourceProperties']['CustomerRegion']
+                    data_set_arn = event['ResourceProperties']['DataSetArn']
+                    analysis_permissions = event['ResourceProperties']['AnalysisPermissions']
+                    analysis_name = event['ResourceProperties']['AnalysisName']
+
+                    analysis_json = read_json_file(s3_bucket, s3_key_name)
+
+                    analysis_json['Name'] = analysis_name
+                    analysis_json['Definition']['DataSetIdentifierDeclarations'][0]['DataSetArn'] = data_set_arn
+                    
+
+                    client = boto3.client('quicksight', region_name = region)
+   
+                    if (event['RequestType'] == 'Create'):
+                         response = create_analysis(client, aws_account_id, analysis_json, analysis_permissions)
+     
+                    if (event['RequestType'] == 'Update'):
+                         response = update_analysis(client, aws_account_id, analysis_json, analysis_permissions)
+     
+                    if (event['RequestType'] == 'Delete'):
+                         response= delete_analysis(client, aws_account_id, analysis_json)
+                    
+     
+                except Exception as e:
+                  status = cfnresponse.FAILED
+                  logger.info(str(e))
+                  responseData['Error'] = str(e)
+                finally:
+                  cfnresponse.send(event, context, status, responseData)
+
+                
+
+            def read_json_file(s3_bucket ,s3_key_name):
+                s3 = boto3.resource('s3')
+                content_object = s3.Object(s3_bucket, s3_key_name)
+                file_content = content_object.get()['Body'].read().decode('utf-8')
+                json_content = json.loads(file_content)
+                return json_content
+    
+
+            def create_analysis(client, aws_account_id, analysis_json, analysis_permissions):
+                parameters= {}
+                permissions = analysis_permissions
+                theme_arn= ''
+                tags = None
+                definition = {}
+                response = None
+                # Create Analysis
+                
+                analysis_id = analysis_json['AnalysisId']
+                if ('Parameters' in analysis_json):
+                    parameters = analysis_json['Parameters']
+                if ('ThemeArn' in analysis_json):
+                    theme_arn = analysis_json['ThemeArn']
+                if ('Tags' in analysis_json):
+                    tags = analysis_json['Tags']   
+                if ('Definition' in analysis_json):
+                    definition = analysis_json['Definition']   
+            
+                if (tags == None):
+                    response = client.create_analysis(
+                    AwsAccountId=aws_account_id,
+                    AnalysisId=analysis_id,
+                    Name = analysis_json['Name'],
+                    Parameters=parameters,
+                    Permissions= permissions,
+                    ThemeArn = theme_arn,
+                    Definition= definition)
+                else:
+                    response = client.create_analysis(
+                    AwsAccountId=aws_account_id,
+                    AnalysisId=analysis_id,
+                    Name=analysis_json['Name'],
+                    Parameters=parameters,
+                    Permissions= permissions,
+                    ThemeArn = theme_arn,
+                    Tags = tags,
+                    Definition= definition)
+                return response
+
+            def update_analysis(client, aws_account_id, analysis_json, analysis_permissions):
+                parameters = {}
+                permissions = analysis_permissions
+                theme_arn= ' '
+                tags = None
+                definition = {}
+                response = None
+                # Update your Analysis
+                analysis_id = analysis_json['AnalysisId']
+                if ('Parameters' in analysis_json):
+                    parameters = analysis_json['Parameters']
+                if ('ThemeArn' in analysis_json):
+                    theme_arn = analysis_json['ThemeArn']
+                if ('Tags' in analysis_json):
+                    tags = analysis_json['Tags']   
+                if ('Definition' in analysis_json):
+                    definition = analysis_json['Definition']   
+            
+                if (tags == None):
+                    response = client.update_analysis(
+                    AwsAccountId=aws_account_id,
+                    AnalysisId=analysis_id,
+                    Name=json_content['Name'],
+                    Parameters=parameters,
+                    Permissions= permissions,
+                    ThemeArn = theme_arn,
+                    Definition= definition)
+                else:
+                    response = client.update_analysis(
+                    AwsAccountId=aws_account_id,
+                    AnalysisId=analysis_id,
+                    Name=json_content['Name'],
+                    Parameters=parameters,
+                    Permissions= permissions,
+                    ThemeArn = theme_arn,
+                    Tags = tags,
+                    Definition= definition)
+                return response
+
+            def delete_analysis(client, aws_account_id, analysis_json):
+                # Delete Analysis
+                response = None
+                if ('AnalysisId' in analysis_json):
+                    analysis_id = analysis_json['AnalysisId']
+                    response = client.delete_analysis(AnalysisId = analysis_id, AwsAccountId = aws_account_id, ForceDeleteWithoutRecovery=True)
+                return response
+   
+    
+  QuickSightAnalysisCustom:
+    Type: 'Custom::QuickSightAnalysis'
+    Properties:
+      ServiceToken: !GetAtt 
+        - CreateQuickSightAnalysisCustomResourceLambda
+        - Arn
+      AnalysisDefinitionFileS3BucketName: !Ref DeploymentPackageS3BucketName
+      AnalysisDefinitionFileS3KeyName: !Ref AnalysisDefinitionFileS3KeyName
+      CustomerAWSAccountId: !Sub ${AWS::AccountId}
+      CustomerRegion: !Sub ${AWS::Region}
+      AnalysisName: !Join 
+        - ''
+        - - SAAS-DataAnalysis
+          - !Ref CustomerName
+          - !Ref SuffixForUniqueness
+      AnalysisPermissions:
+        - Principal: !Join 
+            - ''
+            - - 'arn:aws:quicksight:'
+              - !Ref QuickSightIdentityRegion
+              - ':'
+              - !Sub ${AWS::AccountId}
+              - ':user/default/'
+              - !Ref CustomerQuickSightUser
+          Actions:
+            - 'quicksight:RestoreAnalysis'
+            - 'quicksight:UpdateAnalysisPermissions'
+            - 'quicksight:DeleteAnalysis'
+            - 'quicksight:DescribeAnalysisPermissions'
+            - 'quicksight:QueryAnalysis'
+            - 'quicksight:DescribeAnalysis'
+            - 'quicksight:UpdateAnalysis'
+      DataSetArn: !GetAtt 
+        - QSDataSet
+        - Arn
+
+  CreateQuickSightDashboardCustomResourceLambda:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Runtime: python3.9
+      Layers:
+        - !Ref LambdaLayer
+      Handler: index.handler
+      FunctionName: !Join
+        - ''
+        - - CreateQuickSightDashboardCustomResourceLambda
+          - !Ref SuffixForUniqueness
+      Timeout: 30
+      Role: !GetAtt 
+        - QuickSightCreateAssetsLambdaExecutionRole
+        - Arn
+      Code:
+        ZipFile: |
+            import botocore
+            import boto3
+            import json
+            import cfnresponse
+            import logging
+
+            def handler(event, context):
+                response = None
+                responseData={}
+                analysis_arn = ''
+                status = cfnresponse.SUCCESS
+                logger = logging.getLogger()
+                logger.setLevel(logging.INFO)
+                
+                try:
+                    s3_bucket = event['ResourceProperties']['DashboardDefinitionFileS3BucketName']
+                    s3_key_name = event['ResourceProperties']['DashboardDefinitionFileS3KeyName']
+                    aws_account_id = event['ResourceProperties']['CustomerAWSAccountId']
+                    region= event['ResourceProperties']['CustomerRegion']
+                    data_set_arn = event['ResourceProperties']['DataSetArn']
+                    dashboard_permissions = event['ResourceProperties']['DashboardPermissions']
+                    dashboard_name = event['ResourceProperties']['DashboardName']
+
+                    dashboard_json = read_json_file(s3_bucket, s3_key_name)
+
+                    dashboard_json['Name'] = dashboard_name
+                    dashboard_json['Definition']['DataSetIdentifierDeclarations'][0]['DataSetArn'] = data_set_arn
+                    
+
+                    client = boto3.client('quicksight', region_name = region)
+   
+                    if (event['RequestType'] == 'Create'):
+                         response = create_dashboard(client, aws_account_id, dashboard_json, dashboard_permissions)
+     
+                    if (event['RequestType'] == 'Update'):
+                         response = update_dashboard(client, aws_account_id, dashboard_json, dashboard_permissions)
+     
+                    if (event['RequestType'] == 'Delete'):
+                         response= delete_dashboard(client, aws_account_id, dashboard_json)
+                    
+     
+                except Exception as e:
+                  status = cfnresponse.FAILED
+                  logger.info(str(e))
+                  responseData['Error'] = str(e)
+                finally:
+                  cfnresponse.send(event, context, status, responseData)
+
+                
+
+            def read_json_file(s3_bucket ,s3_key_name):
+                s3 = boto3.resource('s3')
+                content_object = s3.Object(s3_bucket, s3_key_name)
+                file_content = content_object.get()['Body'].read().decode('utf-8')
+                json_content = json.loads(file_content)
+                return json_content
+    
+
+            def create_dashboard(client, aws_account_id, dashboard_json, dashboard_permissions):
+                parameters= {}
+                dashboard_publish_options={}
+                permissions = dashboard_permissions
+                theme_arn= ''
+                tags = None
+                definition = {}
+                response = None
+                # Create Analysis
+                
+                dashboard_id = dashboard_json['DashboardId']
+                if ('Parameters' in dashboard_json):
+                    parameters = dashboard_json['Parameters']
+                if ('DashboardPublishOptions' in dashboard_json):
+                    dashboard_publish_options = dashboard_json['DashboardPublishOptions']  
+                if ('ThemeArn' in dashboard_json):
+                    theme_arn = dashboard_json['ThemeArn']
+                if ('Tags' in dashboard_json):
+                    tags = dashboard_json['Tags']   
+                if ('Definition' in dashboard_json):
+                    definition = dashboard_json['Definition']   
+            
+                if (tags == None):
+                    response = client.create_dashboard(
+                    AwsAccountId=aws_account_id,
+                    DashboardId=dashboard_id,
+                    Name = dashboard_json['Name'],
+                    DashboardPublishOptions = dashboard_publish_options,
+                    Parameters=parameters,
+                    Permissions= permissions,
+                    ThemeArn = theme_arn,
+                    Definition= definition)
+                else:
+                    response = client.create_dashboard(
+                    AwsAccountId=aws_account_id,
+                    DashboardId=dashboard_id,
+                    Name=dashboard_json['Name'],
+                    DashboardPublishOptions = dashboard_publish_options,
+                    Parameters=parameters,
+                    Permissions= permissions,
+                    ThemeArn = theme_arn,
+                    Tags = tags,
+                    Definition= definition)
+                return response
+
+            def update_dashboard(client, aws_account_id, dashboard_json, dashboard_permissions):
+                parameters = {}
+                permissions = dashboard_permissions
+                theme_arn= ' '
+                tags = None
+                definition = {}
+                response = None
+                # Update your Analysis
+                dashboard_id = dashboard_json['DashboardId']
+                if ('Parameters' in dashboard_json):
+                    parameters = dashboard_json['Parameters']
+                if ('DashboardPublishOptions' in dashboard_json):
+                    dashboard_publish_options = dashboard_json['DashboardPublishOptions']  
+                if ('ThemeArn' in dashboard_json):
+                    theme_arn = dashboard_json['ThemeArn']
+                if ('Tags' in dashboard_json):
+                    tags = dashboard_json['Tags']   
+                if ('Definition' in dashboard_json):
+                    definition = dashboard_json['Definition']   
+            
+                if (tags == None):
+                    response = client.update_dashboard(
+                    AwsAccountId=aws_account_id,
+                    DashboardId=dashboard_id,
+                    Name=json_content['Name'],
+                    DashboardPublishOptions = dashboard_publish_options,
+                    Parameters=parameters,
+                    Permissions= permissions,
+                    ThemeArn = theme_arn,
+                    Definition= definition)
+                else:
+                    response = client.update_dashboard(
+                    AwsAccountId=aws_account_id,
+                    DashboardId=dashboard_id,
+                    Name=json_content['Name'],
+                    DashboardPublishOptions = dashboard_publish_options,
+                    Parameters=parameters,
+                    Permissions= permissions,
+                    ThemeArn = theme_arn,
+                    Tags = tags,
+                    Definition= definition)
+                return response
+
+            def delete_dashboard(client, aws_account_id, dashboard_json):
+                # Delete Analysis
+                response = None
+                if ('DashboardId' in dashboard_json):
+                    dashboard_id = dashboard_json['DashboardId']
+                    response = client.delete_dashboard(DashboardId = dashboard_id, AwsAccountId = aws_account_id)
+                return response
+   
+    
+  QuickSightDashboardsCustom:
+    Type: 'Custom::QuickSightDashboard'
+    Properties:
+      ServiceToken: !GetAtt 
+        - CreateQuickSightDashboardCustomResourceLambda
+        - Arn
+      DashboardDefinitionFileS3BucketName: !Ref DeploymentPackageS3BucketName
+      DashboardDefinitionFileS3KeyName: !Ref DashboardDefinitionFileS3KeyName
+      CustomerAWSAccountId: !Sub ${AWS::AccountId}
+      CustomerRegion: !Sub ${AWS::Region}
+      DashboardName: !Join 
+        - ''
+        - - SAAS-Dashboard
+          - !Ref CustomerName
+          - !Ref SuffixForUniqueness
+      DashboardPermissions:
+        - Principal: !Join 
+            - ''
+            - - 'arn:aws:quicksight:'
+              - !Ref QuickSightIdentityRegion
+              - ':'
+              - !Sub ${AWS::AccountId}
+              - ':user/default/'
+              - !Ref CustomerQuickSightUser
+          Actions:
+            - 'quicksight:DescribeDashboard'
+            - 'quicksight:ListDashboardVersions'
+            - 'quicksight:UpdateDashboardPermissions'
+            - 'quicksight:QueryDashboard'
+            - 'quicksight:UpdateDashboard'
+            - 'quicksight:DeleteDashboard'
+            - 'quicksight:DescribeDashboardPermissions'
+            - 'quicksight:UpdateDashboardPublishedVersion'
+      DataSetArn: !GetAtt 
+        - QSDataSet
+        - Arn
