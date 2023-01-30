@@ -1,0 +1,13 @@
+INSERT into SAASTenantDefinition value {  
+    'TenantID' : 'Tenant1',
+    'AWSAccountID': '<ENTER TENANT ACCOUNT ID>',
+    'AWSRegion' : '<ENTER TENANT AWS REGION>',
+    'TenantName': 'SAAS-Customer-1',
+    'QSAdminUserEmail': '<ENTER ADMIN USER EMAIL>',
+    'QSAdminUserPhone' : '<ENTER ADMIN USER PHONE>',
+    'QSAdminUserFirstName' : '<ENTER ADMIN USER FIRST NAME>',
+    'QSAdminUserLastName' : '<ENTER ADMIN USER LAST NAME>',
+    'CodeCommitId' : '',
+    'ApplyLatestRelease': 'false'
+}
+

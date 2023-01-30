@@ -1,0 +1,1 @@
+update SAASTenantDefinition set ApplyLatestRelease = 'true' where TenantID = 'Tenant1' and AWSAccountID = '<ENTER TENANT ACCOUNT ID>'
